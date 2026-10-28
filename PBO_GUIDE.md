@@ -1,1039 +1,1626 @@
-# Panduan 4 Pilar OOP/PBO — Medika Husada
+# BEDAH 4 PILAR OOP MEDIKA HUSADA PER ROLE
 
-Dokumen ini adalah bahan belajar dan bahan presentasi.
+Dokumen ini membahas OOP berdasarkan pekerjaan setiap role.
 
-Semua contoh diambil dari source project Medika Husada.
+Semua klaim diambil dari source project Medika Husada.
 
-Tidak ada class atau method baru yang dibuat untuk melengkapi dokumen ini.
+Tidak ada class, method, atau alur yang dibuat hanya untuk melengkapi dokumentasi.
 
 > **Tanggal audit:** 28 Oktober 2026
 >
-> **Catatan:** nomor baris mengikuti source pada saat audit. Nomor dapat bergeser jika file diubah kemudian.
+> **Catatan:** nomor baris mengikuti source pada saat audit. Nomor dapat bergeser jika source diubah nanti.
 
-## Daftar Isi
+## Kamus Mini
 
-1. [Source yang dibaca](#source-yang-dibaca)
-2. [Apa itu OOP](#apa-itu-oop)
-3. [Class, object, attribute, dan method](#class-object-attribute-dan-method)
-4. [Empat pilar OOP](#empat-pilar-oop)
-5. [Pemetaan ke role Medika Husada](#pemetaan-ke-role-medika-husada)
-6. [Tabel bukti source](#tabel-bukti-source)
-7. [File yang harus dibuka saat presentasi](#file-yang-harus-dibuka-saat-presentasi)
-8. [Jawaban singkat saat dosen bertanya](#jawaban-singkat-saat-dosen-bertanya)
-9. [Cheat sheet presentasi](#cheat-sheet-presentasi)
-10. [Kesimpulan audit](#kesimpulan-audit)
-
----
-
-# Source yang Dibaca
-
-Source utama yang diaudit:
-
-| File | Yang diperiksa |
+| Istilah | Arti sederhana |
 |---|---|
-| `app.py` | Titik masuk aplikasi Flask. |
-| `clinic/__init__.py` | Pembuatan aplikasi, database, login manager, dan blueprint. |
-| `clinic/models.py` | Class data seperti `User`, `Doctor`, `Patient`, `Medicine`, dan `Payment`. |
-| `clinic/services.py` | Aturan janji temu, pemeriksaan, farmasi, dan pembayaran. |
-| `clinic/routes.py` | Hubungan tombol/HTTP request dengan service dan pembatasan role. |
-| `seed.py` | Object contoh seperti Komang, Gea, Bintang, Fatur, Fakih, Alia, dan pasien. |
-| `begitulah.py` | Contoh PBO terpisah. File ini tidak diimpor oleh aplikasi utama, jadi tidak dipakai sebagai bukti utama. |
-| `back/app/models.py` | Model pada backend API terpisah. |
-| `back/app/services.py` | Service pada backend API terpisah. |
-| `back/app/schemas.py` | Class validasi input pada backend API terpisah. |
-| `back/app/database.py` | Class dasar database pada backend API terpisah. |
-| `back/app/main.py` | Route API dan pembatasan role pada backend API terpisah. |
+| Class | Cetakan. |
+| Object | Hasil nyata dari cetakan. |
+| Attribute | Data milik object. |
+| Method | Fungsi yang dimiliki class. |
+| Service | Bagian program yang mengurus satu kelompok pekerjaan. |
+| Route | Pintu yang menerima aksi dari halaman. |
+| Abstraksi | Memakai fungsi penting tanpa melihat proses rumitnya. |
+| Enkapsulasi | Menjaga data agar tidak diubah sembarangan. |
+| Inheritance | Class anak menerima aturan dari class induk. |
+| Polymorphism | Method sama dapat memberi hasil berbeda. |
 
-## Aplikasi Mana yang Menjadi Fokus?
+## Source yang Diaudit
 
-`app.py` menjalankan aplikasi dari package `clinic`:
+Source utama:
 
-```python
-from clinic import create_app
+- `app.py`
+- `seed.py`
+- `clinic/__init__.py`
+- `clinic/models.py`
+- `clinic/services.py`
+- `clinic/routes.py`
 
-app = create_app()
-```
+Source pembanding:
 
-Karena itu, bukti utama pada panduan ini berasal dari folder `clinic`.
+- `begitulah.py`
+- `back/app/models.py`
+- `back/app/services.py`
+- `back/app/schemas.py`
+- `back/app/database.py`
+- `back/app/main.py`
 
-Folder `back/app` adalah implementasi API lain di repository yang sama.
+`app.py` menjalankan package `clinic`.
 
-Folder tersebut sudah dibaca sebagai pembanding, tetapi tidak dicampur dengan bukti aplikasi Flask.
+Karena itu, bukti utama dokumen ini berasal dari folder `clinic`.
 
----
+`begitulah.py` tidak diimpor oleh aplikasi utama.
 
-# Apa itu OOP?
-
-OOP adalah singkatan dari **Object-Oriented Programming**.
-
-Dalam Bahasa Indonesia disebut **Pemrograman Berorientasi Objek (PBO)**.
-
-Gampangnya, OOP menyusun program seperti dunia nyata.
-
-Di klinik ada:
-
-- pengguna;
-- pasien;
-- dokter;
-- obat;
-- janji temu;
-- kunjungan;
-- resep; dan
-- pembayaran.
-
-Di dalam program, hal-hal tersebut dibuat menjadi class dan object.
-
-OOP cocok untuk Medika Husada karena setiap bagian klinik punya data dan tugas yang berbeda.
-
-Contohnya:
-
-- pasien membuat janji;
-- admin memverifikasi;
-- perawat mengisi pemeriksaan awal;
-- dokter membuat diagnosis;
-- apoteker menyiapkan obat; dan
-- kasir memproses pembayaran.
+File tersebut tidak dipakai sebagai bukti utama aplikasi yang berjalan.
 
 ---
 
-# Class, Object, Attribute, dan Method
+## 1. ADMIN — KOMANG
 
-## Class = Cetakan
+Komang dibuat sebagai object `User` dengan `Role.ADMIN`.
 
-Class adalah cetakan.
+**Bukti akun:** `seed.py`, baris 9.
 
-Class menjelaskan data dan fungsi yang dimiliki suatu jenis benda atau orang.
+### Fitur yang Dilakukan Admin
 
-Contoh class yang ada di `clinic/models.py`:
+Fitur Admin yang benar-benar terlihat pada source:
 
-- `User`;
-- `Patient`;
-- `Doctor`;
-- `Medicine`;
-- `Appointment`;
-- `Visit`;
-- `Prescription`;
-- `Invoice`; dan
-- `Payment`.
+- mendaftarkan dan mencari pasien;
+- memverifikasi atau menolak appointment;
+- memanggil, melewati, atau mengembalikan antrean;
+- mengelola dokter dan jadwal;
+- mengelola akun staf;
+- memproses pengajuan rujukan;
+- melihat struk dan laporan pembayaran;
+- menyetujui pembelian pemasok.
 
-## Object = Hasil Nyata dari Cetakan
+Catatan penting:
 
-Object adalah data nyata yang dibuat dari class.
+- Admin memverifikasi **appointment**, bukan memverifikasi akun pasien.
+- Admin dapat melihat laporan pembayaran.
+- Konfirmasi pembayaran pasien dilakukan oleh role Kasir.
 
-Contoh:
+### Pilar OOP yang Digunakan Admin
 
-```text
-Class Doctor
-├── object dr. Muhammad Fakih Nabal
-└── object dr. Alia Fransiska Dewi Arum Trilestari
-```
+#### Pilar: Abstraksi
 
-Kedua dokter tersebut memakai class `Doctor` yang sama.
+**Nama Pilar:**
 
-Tetapi data keduanya berbeda.
+Abstraksi.
 
-Fakih adalah Dokter Umum.
+**Dipakai di Fitur:**
 
-Alia adalah dokter Obstetri dan Ginekologi.
+Verifikasi appointment.
 
-**Bukti source:**
+**File:**
 
-- Class `Doctor`: `clinic/models.py`, baris 109–114.
-- Object Fakih dan Alia: `seed.py`, baris 15–16.
-- Spesialisasi dokter: `seed.py`, baris 30–34.
+- `clinic/routes.py`
+- `clinic/services.py`
 
-## Attribute = Data Milik Object
+**Class:**
 
-Attribute adalah data yang dimiliki object.
+`AppointmentService`
 
-Contoh attribute pada `Doctor`:
+**Method:**
 
-- `specialty` untuk spesialisasi;
-- `fee` untuk tarif; dan
-- `schedules` untuk jadwal.
+`verify()`
 
-Contoh attribute pada `User`:
+**Baris:**
 
-- `email`;
-- `name`;
-- `role`;
-- `phone`; dan
-- `active`.
+- Route: `clinic/routes.py`, baris 235–241.
+- Service: `clinic/services.py`, baris 143–155.
 
-## Method = Fungsi Milik Class
+**Alur:**
 
-Method adalah fungsi yang dimiliki class.
+1. Komang membuka daftar appointment.
+2. Komang memilih aksi verifikasi.
+3. Route `appointment_action()` menerima request.
+4. Route memanggil `AppointmentService.verify()`.
+5. Service memeriksa status appointment.
+6. Service membuat atau memperbarui `Visit`.
+7. Service memberi nomor antrean.
+8. Pasien menerima notifikasi.
 
-Contoh:
+**Kenapa termasuk pilar ini?**
 
-- `User.set_password()` untuk menyimpan password dengan aman;
-- `User.check_password()` untuk memeriksa password; dan
-- `Medicine.change_stock()` untuk mengubah stok dengan aturan tertentu.
+Route tidak menulis semua proses verifikasi.
+
+Route cukup memanggil satu method service.
+
+Detail antrean, status, dan notifikasi disembunyikan di dalam service.
+
+**Gampangnya:**
+
+Komang cukup menekan tombol verifikasi.
+
+Komang tidak perlu tahu query database yang berjalan.
+
+**Kalau konsep ini tidak dipakai:**
+
+Logika verifikasi akan menumpuk di route.
+
+Kode menjadi panjang dan sulit dirawat.
 
 ---
 
-# Empat Pilar OOP
+#### Pilar: Enkapsulasi
 
-### Abstraksi
+**Nama Pilar:**
 
-**Apa itu?**
+Enkapsulasi aturan perubahan status.
 
-Abstraksi artinya kita memakai fungsi penting tanpa harus tahu semua proses rumit di belakangnya.
+**Dipakai di Fitur:**
 
-**Gampangnya**
+- verifikasi appointment;
+- perubahan antrean; dan
+- pengelolaan akun staf.
 
-Bayangkan mesin ATM.
+**File:**
 
-Kita cukup menekan tombol tarik tunai.
+- `clinic/services.py`
+- `clinic/routes.py`
+- `clinic/models.py`
 
-Kita tidak perlu tahu cara mesin memeriksa saldo dan menghitung uang.
+**Class:**
 
-**Di Medika Husada**
+- `AppointmentService`
+- `User`
 
-Ada dua contoh yang kuat.
+**Method:**
 
-Pertama, `PaymentProcessor` memberi satu aturan sederhana:
+- `claim_edit()`
+- `verify()`
+- `User.set_password()`
 
-```python
-amounts(total)
-```
+**Baris:**
 
-Pemakai cukup tahu bahwa method tersebut menghitung:
+- `AppointmentService.claim_edit()`: `clinic/services.py`, baris 80–91.
+- `AppointmentService.verify()`: `clinic/services.py`, baris 143–155.
+- Aksi antrean: `clinic/routes.py`, baris 448–459.
+- Pengelolaan akun: `clinic/routes.py`, baris 666–684.
+- Password `User`: `clinic/models.py`, baris 65–86.
 
-- jumlah yang ditanggung; dan
-- jumlah yang dibayar pasien.
+**Alur:**
 
-Cara menghitungnya disembunyikan di class General atau BPJS.
+1. Admin memilih aksi.
+2. Route memeriksa apakah role Admin boleh melakukan aksi itu.
+3. Method memeriksa status lama.
+4. Perubahan ditolak jika status tidak sesuai.
+5. Jika valid, data diperbarui.
+6. Perubahan disimpan melalui transaksi `mutate()`.
+7. Jika terjadi error, transaksi dibatalkan.
 
-Kedua, route farmasi cukup memanggil:
+**Kenapa termasuk pilar ini?**
 
-```python
-PharmacyService.process(v, action, current_user)
-```
+Admin tidak mengubah status database langsung dari halaman.
 
-Route tidak perlu menulis ulang seluruh proses resep, stok, dan perubahan status.
+Perubahan melewati method dan aturan tertentu.
 
-**Bukti source code**
+Data menjadi lebih terkontrol.
 
-File:
+**Gampangnya:**
 
-`clinic/services.py`
+Status punya pintu masuk.
 
-Class:
+Tidak semua perubahan boleh lewat.
 
-`PaymentProcessor`
+**Kalau konsep ini tidak dipakai:**
 
-Method:
+Appointment dapat berpindah ke status yang salah.
 
-`amounts()`
+Antrean juga dapat diubah dengan aksi yang tidak valid.
 
-Baris:
+### Pilar yang Tidak Ditemukan Langsung pada Admin
 
-`231–248`
-
-Bukti tambahan:
-
-- `PharmacyService.process()`: `clinic/services.py`, baris 203–228.
-- Route yang memanggilnya: `clinic/routes.py`, baris 401–405.
-
-Potongan kode:
-
-```python
-class PaymentProcessor(ABC):
-    @abstractmethod
-    def amounts(self, total):
-        """Mengembalikan tanggungan dan jumlah pasien."""
-```
-
-**Kenapa ini termasuk pilar tersebut?**
-
-Class ini hanya memberi tahu fungsi yang harus tersedia.
-
-Class ini tidak menuliskan satu cara hitung untuk semua pembayaran.
-
-Detail perhitungan diberikan kepada class lain.
-
-Itulah abstraksi: bagian penting terlihat, detail rumit disembunyikan.
-
-**Kenapa dipakai?**
-
-Supaya cara memakai pembayaran tetap sederhana.
-
-Service lain cukup memanggil `amounts(total)`.
-
-**Kalau tidak dipakai?**
-
-Detail perhitungan akan tersebar di banyak tempat.
-
-Kode menjadi lebih panjang dan sulit dibaca.
-
-**Kesimpulan**
-
-> Abstraksi = pakai fungsi pentingnya, detail rumitnya disembunyikan.
+- **Inheritance:** tidak ditemukan penggunaan domain langsung pada pekerjaan Admin.
+- **Polymorphism:** Admin melihat laporan pembayaran, tetapi pemanggilan strategi pembayaran dilakukan pada alur Kasir.
 
 ---
 
-### Enkapsulasi
+## 2. PERAWAT — GEA
 
-**Apa itu?**
+Gea dibuat sebagai object `User` dengan `Role.NURSE`.
 
-Enkapsulasi artinya data penting dijaga supaya tidak diubah sembarangan.
+**Bukti akun:** `seed.py`, baris 10.
 
-Perubahan dilakukan melalui method yang sudah mempunyai aturan.
+### Fitur yang Dilakukan Perawat
 
-**Gampangnya**
+Fitur Perawat yang benar-benar ada:
 
-Stok obat seperti lemari obat.
+- melihat pasien yang menunggu pemeriksaan awal;
+- mengisi tekanan darah;
+- mengisi suhu;
+- mengisi berat dan tinggi badan;
+- mengisi nadi, napas, saturasi, dan skala nyeri;
+- menulis keluhan serta catatan;
+- mengirim pasien ke antrean dokter.
 
-Tidak semua orang boleh mengambil obat seenaknya.
+Source memakai nama `NursingAssessment`.
 
-Jumlah harus diperiksa dan pengambilan harus dicatat.
+Tidak ada class khusus bernama `Triage`.
 
-**Di Medika Husada**
+### Pilar OOP yang Digunakan Perawat
 
-Stok obat disimpan sebagai `_stock` pada class `Medicine`.
+#### Pilar: Abstraksi
 
-Stok dibaca melalui property `stock`.
+**Nama Pilar:**
 
-Stok diubah melalui `change_stock()`.
+Abstraksi.
 
-Method tersebut:
+**Dipakai di Fitur:**
 
-- menolak jumlah kosong;
-- mewajibkan alasan;
-- mencegah stok menjadi negatif;
-- mencatat siapa yang mengubah; dan
-- membuat catatan `StockMovement`.
+Pemeriksaan awal pasien.
 
-Password juga memakai pola yang sama.
+**File:**
 
-Password tidak ditulis langsung.
+- `clinic/routes.py`
+- `clinic/services.py`
 
-Password disimpan lewat `User.set_password()` dan diperiksa lewat `User.check_password()`.
+**Class:**
 
-**Bukti source code**
+`WorkflowService`
 
-File:
+**Method:**
 
-`clinic/models.py`
+`nurse()`
 
-Class:
+**Baris:**
 
-`Medicine`
+- Route: `clinic/routes.py`, baris 374–378.
+- Service: `clinic/services.py`, baris 168–179.
 
-Method:
+**Alur:**
 
-`change_stock()`
+1. Gea memilih pasien dari antrean pemeriksaan awal.
+2. Gea mengisi tekanan darah, suhu, nadi, dan data lain.
+3. Gea menekan simpan.
+4. Route `nursing()` menerima data.
+5. Route memanggil `WorkflowService.nurse()`.
+6. Service memvalidasi semua angka.
+7. Service membuat object `NursingAssessment`.
+8. Status `Visit` berubah menjadi `WAITING_DOCTOR`.
 
-Baris:
+**Kenapa termasuk pilar ini?**
 
-`208–231`
+Route tidak perlu tahu semua validasi pemeriksaan.
 
-Bukti tambahan:
+Route cukup menyerahkan pekerjaan kepada service.
 
-- `User._password_hash`: `clinic/models.py`, baris 65–76.
-- `User.set_password()` dan `check_password()`: `clinic/models.py`, baris 78–86.
-- Pemakaian stok saat resep siap: `clinic/services.py`, baris 218–223.
+**Gampangnya:**
 
-Potongan kode:
+Gea hanya mengisi form.
 
-```python
-if not delta or not reason.strip():
-    raise ValueError('Jumlah dan alasan stok wajib diisi.')
+Service mengurus validasi dan penyimpanan.
 
-if result.rowcount != 1:
-    raise ValueError(f'Stok {self.name} tidak cukup.')
-```
+**Kalau konsep ini tidak dipakai:**
 
-**Kenapa ini termasuk pilar tersebut?**
+Validasi tanda vital harus ditulis di route.
 
-Data stok tidak hanya berupa angka bebas.
+Route menjadi panjang dan sulit dibaca.
 
-Aturan perubahan stok diletakkan bersama method `change_stock()`.
+---
 
-Halaman atau service tidak perlu membuat aturan stok sendiri-sendiri.
+#### Pilar: Enkapsulasi
 
-**Kenapa dipakai?**
+**Nama Pilar:**
 
-Supaya stok tetap benar.
+Enkapsulasi aturan pemeriksaan dan status.
 
-Setiap perubahan juga mempunyai jejak.
+**Dipakai di Fitur:**
 
-**Kalau tidak dipakai?**
+- validasi vital sign;
+- penyimpanan catatan perawat; dan
+- pengiriman pasien ke dokter.
+
+**File:**
+
+- `clinic/services.py`
+- `clinic/models.py`
+
+**Class:**
+
+- `WorkflowService`
+- `NursingAssessment`
+- `Visit`
+
+**Method:**
+
+- `nurse()`
+- `transition()`
+
+**Baris:**
+
+- `WorkflowService.transition()`: `clinic/services.py`, baris 160–165.
+- `WorkflowService.nurse()`: `clinic/services.py`, baris 168–179.
+- `NursingAssessment`: `clinic/models.py`, baris 172–188.
+- `Visit.status`: `clinic/models.py`, baris 154–169.
+
+**Alur:**
+
+1. Data vital sign masuk ke `WorkflowService.nurse()`.
+2. Setiap angka diperiksa batas minimumnya dan maksimumnya.
+3. Keluhan wajib diisi.
+4. `transition()` memeriksa status kunjungan saat ini.
+5. Hanya kunjungan `WAITING_NURSE` yang boleh lanjut.
+6. `NursingAssessment` dibuat.
+7. Appointment ditandai sudah hadir.
+
+**Kenapa termasuk pilar ini?**
+
+Nilai pemeriksaan dan perubahan status tidak dilakukan sembarangan.
+
+Semua harus melewati aturan di service.
+
+**Gampangnya:**
+
+Service menjadi penjaga pintu.
+
+Data yang tidak masuk akal akan ditolak.
+
+**Kalau konsep ini tidak dipakai:**
+
+Suhu atau tekanan darah yang tidak masuk akal bisa tersimpan.
+
+Pasien juga bisa masuk ke antrean dokter tanpa pemeriksaan awal yang valid.
+
+### Pilar yang Tidak Ditemukan Langsung pada Perawat
+
+- **Inheritance:** tidak ada class `Nurse(User)` pada source.
+- **Polymorphism:** tidak ditemukan method Perawat yang sama dengan beberapa perilaku berbeda.
+
+---
+
+## 3. DOKTER
+
+### Dokter Umum — dr. Muhammad Fakih Nabal
+
+Fakih dibuat sebagai object `User` dengan `Role.DOCTOR`.
+
+Fakih juga mempunyai record `Doctor` dengan spesialisasi `Dokter Umum`.
+
+**Bukti:**
+
+- akun: `seed.py`, baris 15;
+- record dokter dan spesialisasi: `seed.py`, baris 30–34.
+
+### Dokter Kandungan — dr. Alia Fransiska Dewi Arum Trilestari
+
+Alia dibuat sebagai object `User` dengan `Role.DOCTOR`.
+
+Alia juga mempunyai record `Doctor` dengan spesialisasi `Obstetri dan Ginekologi`.
+
+**Bukti:**
+
+- akun: `seed.py`, baris 16;
+- record dokter dan spesialisasi: `seed.py`, baris 30–34.
+
+### Bagaimana Source Sebenarnya?
+
+Fakih dan Alia memakai struktur class yang sama:
+
+- class `User` untuk nama, email, password, role, SIP, dan status akun;
+- class `Doctor` untuk spesialisasi, tarif, dan jadwal.
+
+Hubungannya adalah one-to-one melalui `Doctor.user_id`.
+
+**Bukti:**
+
+- relasi `User.doctor`: `clinic/models.py`, baris 65–76;
+- class `Doctor`: `clinic/models.py`, baris 109–114.
+
+`Doctor` tidak mewarisi `User`.
+
+Source tidak mempunyai `class Doctor(User)`.
+
+### Fitur yang Dilakukan Dokter
+
+- melihat pasien dan hasil pemeriksaan perawat;
+- memulai pemeriksaan;
+- menulis anamnesis;
+- menulis pemeriksaan fisik;
+- menulis diagnosis;
+- menulis tindakan dan biaya tindakan;
+- membuat resep;
+- mengajukan rujukan;
+- menandatangani surat rujukan.
+
+### Pilar OOP yang Digunakan Dokter
+
+#### Pilar: Abstraksi
+
+**Nama Pilar:**
+
+Abstraksi.
+
+**Dipakai di Fitur:**
+
+Pemeriksaan dokter dan pembuatan resep.
+
+**File:**
+
+- `clinic/routes.py`
+- `clinic/services.py`
+
+**Class:**
+
+`WorkflowService`
+
+**Method:**
+
+`examine()`
+
+**Baris:**
+
+- Route pemeriksaan: `clinic/routes.py`, baris 381–398.
+- Service pemeriksaan: `clinic/services.py`, baris 181–200.
+
+**Alur:**
+
+1. Dokter memilih pasien.
+2. Dokter memulai pemeriksaan.
+3. Status berubah menjadi `WITH_DOCTOR`.
+4. Dokter mengisi diagnosis, tindakan, dan resep.
+5. Route mengumpulkan data item obat.
+6. Route memanggil `WorkflowService.examine()`.
+7. Service membuat `DoctorExamination`.
+8. Jika ada obat, service membuat `Prescription`.
+9. Status bergerak ke farmasi atau pembayaran.
+
+**Kenapa termasuk pilar ini?**
+
+Dokter dan route tidak perlu menulis query penyimpanan satu per satu.
+
+Satu method service mengurus pemeriksaan dan resep.
+
+**Gampangnya:**
+
+Dokter menekan simpan.
+
+Service mengurus object dan status di belakangnya.
+
+**Kalau konsep ini tidak dipakai:**
+
+Logika pemeriksaan, resep, dan status akan tersebar di route.
+
+Risiko ada langkah yang tertinggal menjadi lebih besar.
+
+---
+
+#### Pilar: Enkapsulasi
+
+**Nama Pilar:**
+
+Enkapsulasi aturan pemeriksaan dan workflow.
+
+**Dipakai di Fitur:**
+
+- validasi diagnosis;
+- validasi obat resep;
+- penyimpanan pemeriksaan; dan
+- perubahan status kunjungan.
+
+**File:**
+
+- `clinic/services.py`
+- `clinic/models.py`
+
+**Class:**
+
+- `WorkflowService`
+- `DoctorExamination`
+- `Prescription`
+
+**Method:**
+
+- `examine()`
+- `transition()`
+
+**Baris:**
+
+- `WorkflowService.transition()`: `clinic/services.py`, baris 160–165.
+- `WorkflowService.examine()`: `clinic/services.py`, baris 181–200.
+- `DoctorExamination`: `clinic/models.py`, baris 191–205.
+- `Prescription`: `clinic/models.py`, baris 291–310.
+
+**Alur:**
+
+1. Service memeriksa anamnesis, pemeriksaan fisik, dan diagnosis.
+2. Service memeriksa ID obat.
+3. Obat duplikat ditolak.
+4. Jumlah obat harus valid.
+5. Status kunjungan diperiksa sebelum dipindahkan.
+6. Pemeriksaan dan resep baru disimpan setelah valid.
+
+**Kenapa termasuk pilar ini?**
+
+Data pemeriksaan tidak langsung ditulis bebas dari halaman.
+
+Perubahan melewati aturan di `WorkflowService`.
+
+**Gampangnya:**
+
+Diagnosis dan resep masuk lewat satu pintu yang diperiksa.
+
+**Kalau konsep ini tidak dipakai:**
+
+Resep bisa mempunyai obat duplikat atau jumlah tidak valid.
+
+Status kunjungan juga bisa melompat ke tahap yang salah.
+
+### Pilar yang Tidak Ditemukan Langsung pada Dokter
+
+- **Inheritance domain:** `Doctor` tidak mewarisi `User`; keduanya memakai relasi.
+- **Polymorphism:** tidak ditemukan method Dokter yang sama dengan perilaku berbeda untuk Fakih dan Alia. Keduanya memakai alur `WorkflowService.examine()` yang sama.
+
+---
+
+## 4. APOTEKER — BINTANG
+
+Bintang dibuat sebagai object `User` dengan `Role.PHARMACIST`.
+
+**Bukti akun:** `seed.py`, baris 11.
+
+### Fitur yang Dilakukan Apoteker
+
+- menerima resep;
+- membuka detail resep;
+- memulai proses penyiapan obat;
+- melaporkan stok kurang;
+- memeriksa obat kedaluwarsa;
+- mengurangi stok;
+- menandai obat siap;
+- menyerahkan obat;
+- mengajukan pembelian stok kepada pemasok.
+
+Catatan jujur:
+
+Source memakai istilah “menyiapkan obat”.
+
+Tidak ada class atau method khusus bernama `racik_obat()`.
+
+### Pilar OOP yang Digunakan Apoteker
+
+#### Pilar: Abstraksi
+
+**Nama Pilar:**
+
+Abstraksi.
+
+**Dipakai di Fitur:**
+
+Proses resep dari mulai disiapkan sampai diserahkan.
+
+**File:**
+
+- `clinic/routes.py`
+- `clinic/services.py`
+
+**Class:**
+
+`PharmacyService`
+
+**Method:**
+
+`process()`
+
+**Baris:**
+
+- Route: `clinic/routes.py`, baris 401–405.
+- Service: `clinic/services.py`, baris 203–228.
+
+**Alur:**
+
+1. Resep masuk ke antrean farmasi.
+2. Bintang membuka resep.
+3. Bintang memilih aksi mulai proses.
+4. Route memanggil `PharmacyService.process()`.
+5. Service mengubah status resep menjadi diproses.
+6. Saat obat siap, service memeriksa kedaluwarsa dan stok.
+7. Saat obat diserahkan, service membuat invoice.
+
+**Kenapa termasuk pilar ini?**
+
+Route hanya meneruskan aksi.
+
+Detail seluruh proses farmasi disimpan dalam satu service.
+
+**Gampangnya:**
+
+Bintang memilih aksi.
+
+Service mengurus langkah teknis di belakangnya.
+
+**Kalau konsep ini tidak dipakai:**
+
+Aturan farmasi akan tersebar di banyak route.
+
+Setiap aksi dapat mempunyai aturan yang tidak konsisten.
+
+---
+
+#### Pilar: Enkapsulasi
+
+**Nama Pilar:**
+
+Enkapsulasi stok obat.
+
+**Dipakai di Fitur:**
+
+- pengecekan stok;
+- pengurangan stok; dan
+- pencatatan penyerahan obat.
+
+**File:**
+
+- `clinic/models.py`
+- `clinic/services.py`
+
+**Class:**
+
+- `Medicine`
+- `StockMovement`
+- `PharmacyService`
+
+**Method:**
+
+- `Medicine.change_stock()`
+- `PharmacyService.process()`
+
+**Baris:**
+
+- `Medicine`: `clinic/models.py`, baris 208–231.
+- `StockMovement`: `clinic/models.py`, baris 234–242.
+- Pemakaian saat obat siap: `clinic/services.py`, baris 218–223.
+
+**Alur:**
+
+1. Resep berisi daftar obat dan jumlah.
+2. Bintang menandai obat siap.
+3. `PharmacyService` memeriksa tanggal kedaluwarsa.
+4. Service memanggil `Medicine.change_stock()`.
+5. Method menolak perubahan jika stok tidak cukup.
+6. Jika valid, stok dikurangi.
+7. `StockMovement` mencatat jumlah, alasan, aktor, dan kunjungan.
+8. Status resep berubah menjadi `READY`.
+9. Pasien menerima notifikasi dari perpindahan status.
+
+**Kenapa termasuk pilar ini?**
+
+Stok tidak dikurangi langsung dari halaman.
+
+Perubahan harus lewat method yang mempunyai validasi.
+
+**Gampangnya:**
+
+Stok seperti lemari obat yang dikunci.
+
+`change_stock()` adalah pintu resminya.
+
+**Kalau konsep ini tidak dipakai:**
 
 Stok dapat menjadi minus.
 
-Alasan perubahan dapat hilang.
+Riwayat perubahan juga dapat hilang.
 
-Kita juga sulit mengetahui siapa yang mengubahnya.
+### Pilar yang Tidak Ditemukan Langsung pada Apoteker
 
-**Catatan jujur**
-
-Python tidak mempunyai private mutlak seperti beberapa bahasa lain.
-
-Awalan garis bawah pada `_stock` dan `_password_hash` adalah tanda bahwa data tersebut sebaiknya tidak diubah langsung.
-
-**Kesimpulan**
-
-> Enkapsulasi = menjaga data supaya tidak diubah sembarangan.
+- **Inheritance:** tidak ada class `Pharmacist(User)` pada source.
+- **Polymorphism:** aksi farmasi masih dipilih dengan nilai `action` dan percabangan di `process()`, bukan object polymorphic terpisah.
 
 ---
 
-### Pewarisan / Inheritance
+## 5. KASIR — FATUR
 
-**Apa itu?**
+Fatur dibuat sebagai object `User` dengan `Role.CASHIER`.
 
-Inheritance berarti pewarisan.
+**Bukti akun:** `seed.py`, baris 12.
 
-Class anak menerima aturan dasar dari class induk.
+### Fitur yang Dilakukan Kasir
 
-**Gampangnya**
+- melihat kunjungan yang menunggu pembayaran;
+- membuka invoice;
+- memilih metode pembayaran;
+- memasukkan uang diterima untuk pembayaran tunai;
+- melihat kembalian;
+- mengonfirmasi pembayaran;
+- membuka struk.
 
-Bayangkan hubungan keluarga.
+Metode yang diterima source:
 
-Anak menerima ciri dasar dari orang tuanya.
+- BPJS;
+- Tunai;
+- Transfer;
+- QRIS; dan
+- Debit.
 
-Tetapi setiap anak tetap dapat mempunyai perilaku yang berbeda.
+Catatan penting:
 
-**Di Medika Husada**
+Metode tersebut belum mempunyai class masing-masing.
 
-Inheritance domain yang paling jelas ada pada pembayaran.
+Tidak ada method `process_payment()` pada source.
 
-`PaymentProcessor` adalah class induk.
+### Pilar OOP yang Digunakan Kasir
 
-`GeneralPayment` dan `BPJSPayment` adalah class anak.
+#### Pilar: Abstraksi
 
-```text
-PaymentProcessor
-├── GeneralPayment
-└── BPJSPayment
-```
+**Nama Pilar:**
 
-Kedua class anak wajib mempunyai method `amounts(total)`.
+Abstraksi.
 
-**Bukti source code**
+**Dipakai di Fitur:**
 
-File:
+Konfirmasi pembayaran dan pembuatan invoice.
+
+**File:**
+
+- `clinic/routes.py`
+- `clinic/services.py`
+
+**Class:**
+
+`BillingService`
+
+**Method:**
+
+- `invoice()`
+- `pay()`
+
+**Baris:**
+
+- Route Kasir: `clinic/routes.py`, baris 408–422.
+- `BillingService`: `clinic/services.py`, baris 251–294.
+
+**Alur:**
+
+1. Fatur membuka daftar pembayaran.
+2. Fatur memilih invoice pasien.
+3. Fatur memilih metode pembayaran.
+4. Route `pay()` menerima form.
+5. Route memanggil `BillingService.pay()`.
+6. Service memeriksa tagihan dan metode.
+7. Service membuat object `Payment`.
+8. Route menampilkan struk.
+
+**Kenapa termasuk pilar ini?**
+
+Route tidak menghitung semua tagihan sendiri.
+
+Detail pembayaran diserahkan kepada `BillingService`.
+
+**Gampangnya:**
+
+Kasir mengisi form.
+
+Service mengurus hitungan dan status.
+
+**Kalau konsep ini tidak dipakai:**
+
+Logika pembayaran akan menumpuk di route.
+
+Kesalahan hitung menjadi lebih sulit dicari.
+
+---
+
+#### Pilar: Enkapsulasi
+
+**Nama Pilar:**
+
+Enkapsulasi aturan pembayaran.
+
+**Dipakai di Fitur:**
+
+- validasi metode;
+- validasi uang tunai;
+- perubahan status invoice; dan
+- penyelesaian visit.
+
+**File:**
+
+- `clinic/services.py`
+- `clinic/models.py`
+
+**Class:**
+
+- `BillingService`
+- `Invoice`
+- `Payment`
+- `WorkflowService`
+
+**Method:**
+
+- `BillingService.pay()`
+- `WorkflowService.transition()`
+
+**Baris:**
+
+- `BillingService.pay()`: `clinic/services.py`, baris 270–294.
+- `WorkflowService.transition()`: `clinic/services.py`, baris 160–165.
+- `Invoice`: `clinic/models.py`, baris 314–324.
+- `Payment`: `clinic/models.py`, baris 336–343.
+
+**Alur:**
+
+1. Service memastikan invoice tersedia.
+2. Service memeriksa diskon.
+3. Service memeriksa metode pembayaran.
+4. Jika Tunai, uang diterima harus valid dan cukup.
+5. Service menghitung kembalian.
+6. Status visit dipindahkan ke `COMPLETED`.
+7. Status invoice menjadi lunas atau ditanggung BPJS.
+8. Object `Payment` dibuat.
+
+**Kenapa termasuk pilar ini?**
+
+Kasir tidak langsung mengubah status invoice dan visit.
+
+Semua perubahan penting melewati aturan service.
+
+**Gampangnya:**
+
+Pembayaran punya satu pintu resmi.
+
+Pintu itu memeriksa semua aturan sebelum menutup kunjungan.
+
+**Kalau konsep ini tidak dipakai:**
+
+Invoice dapat ditandai lunas walaupun uang tunai kurang.
+
+Visit juga dapat selesai tanpa payment yang valid.
+
+---
+
+#### Pilar: Pewarisan / Inheritance
+
+**Nama Pilar:**
+
+Inheritance strategi pembayaran.
+
+**Dipakai di Fitur:**
+
+Perhitungan tagihan General dan BPJS.
+
+**File:**
 
 `clinic/services.py`
 
-Class induk:
+**Class:**
 
-`PaymentProcessor`
+- Induk: `PaymentProcessor`
+- Anak: `GeneralPayment`
+- Anak: `BPJSPayment`
 
-Class anak:
-
-- `GeneralPayment`
-- `BPJSPayment`
-
-Method:
+**Method:**
 
 `amounts()`
 
-Baris:
+**Baris:**
 
-`231–248`
+`clinic/services.py`, baris 231–248.
 
-Potongan kode:
+**Alur:**
+
+1. `PaymentProcessor` menentukan bahwa strategi harus punya `amounts()`.
+2. `GeneralPayment` mewarisi `PaymentProcessor`.
+3. `BPJSPayment` juga mewarisi `PaymentProcessor`.
+4. Kedua class anak menulis cara hitungnya sendiri.
+
+**Kenapa termasuk pilar ini?**
+
+Nama class induk ditulis di dalam kurung:
 
 ```python
 class GeneralPayment(PaymentProcessor):
-    def amounts(self, total):
-        return 0, total
-
 class BPJSPayment(PaymentProcessor):
-    def amounts(self, total):
-        return total, 0
 ```
 
-**Kenapa ini termasuk pilar tersebut?**
+Itu adalah bentuk inheritance yang nyata pada source.
 
-Nama class induk ditulis di dalam kurung.
+**Gampangnya:**
 
-`GeneralPayment(PaymentProcessor)` berarti General adalah anak dari `PaymentProcessor`.
+`PaymentProcessor` adalah induk.
 
-`BPJSPayment(PaymentProcessor)` berarti BPJS juga anak dari `PaymentProcessor`.
+General dan BPJS adalah anak.
 
-**Kenapa dipakai?**
+**Kalau konsep ini tidak dipakai:**
 
-Supaya semua strategi pembayaran mengikuti aturan method yang sama.
+Aturan dasar pembayaran harus ditulis dengan cara berbeda-beda.
 
-Aturan dasar tidak perlu dibuat dengan nama berbeda-beda.
-
-**Kalau tidak dipakai?**
-
-Kontrak yang sama dapat ditulis berulang.
-
-Nama method dapat berbeda dan membingungkan.
-
-**Apakah Doctor, Nurse, dan Admin mewarisi User?**
-
-Tidak pada source aplikasi ini.
-
-Source tidak menulis `class Doctor(User)`.
-
-`Doctor` dan `Patient` adalah model yang terhubung ke `User` melalui `user_id`.
-
-Buktinya:
-
-- relasi pada `User`: `clinic/models.py`, baris 75–76;
-- `Patient.user_id`: `clinic/models.py`, baris 89–106; dan
-- `Doctor.user_id`: `clinic/models.py`, baris 109–114.
-
-Admin, Perawat, Apoteker, dan Kasir juga bukan class terpisah.
-
-Mereka adalah object `User` dengan nilai `role` yang berbeda.
-
-**Inheritance framework**
-
-Ada juga inheritance dari framework:
-
-```python
-class User(UserMixin, db.Model):
-```
-
-Ini ada pada `clinic/models.py`, baris 65.
-
-`UserMixin` memberi fungsi login dasar.
-
-`db.Model` memberi fungsi model database.
-
-**Kesimpulan**
-
-> Inheritance = class anak menerima aturan dasar dari class induk.
+Tidak ada kontrak method yang sama.
 
 ---
 
-### Polimorfisme / Polymorphism
+#### Pilar: Polimorfisme / Polymorphism
 
-**Apa itu?**
+**Nama Pilar:**
 
-Polimorfisme berarti nama method yang sama dapat memberi hasil berbeda.
+Polymorphism pada `amounts()`.
 
-Hasilnya tergantung object yang menjalankan.
+**Dipakai di Fitur:**
 
-**Gampangnya**
+Pembagian biaya antara pasien dan BPJS.
 
-Kita memberi perintah “bersuara”.
-
-Kucing menjawab “meong”.
-
-Anjing menjawab “guk”.
-
-Perintahnya sama, hasilnya berbeda.
-
-**Di Medika Husada**
-
-Method yang dipakai adalah:
-
-```python
-amounts(total)
-```
-
-Jika object-nya `GeneralPayment`:
-
-- tanggungan = Rp0;
-- pasien membayar seluruh total.
-
-Jika object-nya `BPJSPayment`:
-
-- tanggungan = seluruh total;
-- pasien membayar Rp0.
-
-`BillingService` memilih object yang sesuai lalu memanggil nama method yang sama.
-
-**Bukti source code**
-
-File:
+**File:**
 
 `clinic/services.py`
 
-Class:
+**Class:**
 
 - `GeneralPayment`
 - `BPJSPayment`
 - `BillingService`
 
-Method:
+**Method:**
 
 - `amounts()`
 - `invoice()`
 - `pay()`
 
-Baris:
+**Baris:**
 
-- implementasi `amounts()`: `241–248`;
-- pemilihan object dan pemanggilan method: `251–265`;
-- pemakaian ulang saat pembayaran: `269–294`.
+- Hasil General dan BPJS: `clinic/services.py`, baris 241–248.
+- Pemilihan processor: `clinic/services.py`, baris 251–265.
+- Pemakaian saat bayar: `clinic/services.py`, baris 270–294.
 
-Potongan kode:
+**Alur:**
 
-```python
-processor = (
-    BPJSPayment()
-    if v.appointment.insurance
-    else GeneralPayment()
-)
-coverage, payable = processor.amounts(total)
-```
+1. Sistem memeriksa apakah appointment memakai BPJS.
+2. Sistem memilih `BPJSPayment()` atau `GeneralPayment()`.
+3. Object disimpan pada variabel `processor`.
+4. Sistem memanggil `processor.amounts(total)`.
+5. General menghasilkan tanggungan Rp0 dan pasien membayar total.
+6. BPJS menghasilkan tanggungan penuh dan pasien membayar Rp0.
 
-**Kenapa ini termasuk pilar tersebut?**
+**Kenapa termasuk pilar ini?**
 
-Variabel `processor` dapat berisi object General atau BPJS.
+Nama method yang dipanggil sama.
 
-Keduanya dipanggil dengan method yang sama: `amounts(total)`.
+Hasilnya berbeda sesuai object yang menjalankan.
 
-Hasilnya berbeda sesuai object yang dipilih.
+**Gampangnya:**
 
-**Kenapa dipakai?**
+Perintahnya sama: “hitung pembayaran”.
 
-`BillingService` cukup memakai satu nama method.
+Jawabannya berbeda untuk General dan BPJS.
 
-Cara hitung diserahkan kepada object pembayaran.
+**Kalau konsep ini tidak dipakai:**
 
-**Kalau tidak dipakai?**
+Percabangan perhitungan dapat semakin panjang.
 
-Percabangan `if/else` dapat semakin panjang.
+Setiap strategi harus ditangani langsung oleh `BillingService`.
 
-Setiap cara hitung baru harus ditambahkan langsung ke service.
+### Batas Polymorphism Pembayaran
 
-**Catatan jujur**
+Tunai, Transfer, QRIS, dan Debit masih berupa teks.
 
-Tunai, Transfer, QRIS, dan Debit belum memakai class polymorphic terpisah.
+Tunai mempunyai percabangan khusus untuk menghitung kembalian.
 
-Pada `BillingService.pay()`, metode tersebut masih berupa teks dan percabangan.
+**Bukti:** `clinic/services.py`, baris 274–287.
 
-Buktinya ada di `clinic/services.py`, baris 274–287.
+Jadi jangan mengatakan ada:
 
-Tidak ada class `CashPayment`, `TransferPayment`, atau `QRISPayment` pada aplikasi ini.
+- `CashPayment.process_payment()`;
+- `TransferPayment.process_payment()`; atau
+- `QRISPayment.process_payment()`.
 
-Jadi contoh polymorphism yang benar-benar ada adalah General dan BPJS.
-
-**Kesimpulan**
-
-> Polimorfisme = nama aksi sama, tetapi hasilnya dapat berbeda.
+Class dan method tersebut tidak ada.
 
 ---
 
-# Pemetaan ke Role Medika Husada
+## 6. PASIEN
 
-Role didefinisikan pada `clinic/models.py`, baris 9–15.
+Contoh object pasien pada seed:
 
-Akun contoh dibuat pada `seed.py`, baris 8–19.
-
-Role tidak dipaksa mempunyai semua pilar.
-
-Yang dijelaskan hanya pilar yang memang berkaitan.
-
-## Admin — Komang
-
-Komang adalah object `User` dengan `Role.ADMIN`.
-
-**Bukti akun:** `seed.py`, baris 9.
-
-Tugas yang terlihat di source:
-
-- memverifikasi janji temu;
-- mengatur antrean;
-- mengelola pasien;
-- mengelola pengguna; dan
-- melihat laporan.
-
-**Bukti proses verifikasi:**
-
-- route: `clinic/routes.py`, baris 235–241;
-- service: `AppointmentService.verify()`, `clinic/services.py`, baris 143–155.
-
-**Pilar yang berkaitan:**
-
-- Abstraksi: route menyerahkan proses kepada `AppointmentService`.
-- Enkapsulasi: status appointment dan visit tidak diubah tanpa pemeriksaan.
-
-## Perawat — Gea
-
-Gea adalah object `User` dengan `Role.NURSE`.
-
-**Bukti akun:** `seed.py`, baris 10.
-
-Gea mengisi pemeriksaan awal seperti:
-
-- tekanan darah;
-- suhu;
-- berat badan;
-- tinggi badan;
-- nadi; dan
-- keluhan.
-
-**Bukti source:**
-
-- model data: `NursingAssessment`, `clinic/models.py`, baris 172–188;
-- route: `clinic/routes.py`, baris 374–378;
-- service: `WorkflowService.nurse()`, `clinic/services.py`, baris 168–179.
-
-**Pilar yang berkaitan:**
-
-- Abstraksi: route cukup memanggil `WorkflowService.nurse()`.
-- Enkapsulasi: nilai pemeriksaan divalidasi dan status kunjungan dipindahkan lewat service.
-
-## Dokter Umum — dr. Muhammad Fakih Nabal
-
-Fakih adalah object `User` dengan role dokter dan mempunyai profil `Doctor`.
-
-Fakih mempunyai spesialisasi `Dokter Umum`.
-
-**Bukti akun dan spesialisasi:**
-
-- akun: `seed.py`, baris 15;
-- spesialisasi dan jadwal: `seed.py`, baris 30–34.
-
-**Bukti proses pemeriksaan:**
-
-- route: `clinic/routes.py`, baris 381–398;
-- service: `WorkflowService.examine()`, `clinic/services.py`, baris 181–200;
-- model hasil pemeriksaan: `DoctorExamination`, `clinic/models.py`, baris 191–205.
-
-**Pilar yang berkaitan:**
-
-- Class dan object: Fakih adalah satu object dokter.
-- Abstraksi: proses pemeriksaan diserahkan kepada `WorkflowService`.
-
-## Dokter Kandungan — dr. Alia Fransiska Dewi Arum Trilestari
-
-Alia adalah object dokter yang berbeda dari Fakih.
-
-Alia mempunyai spesialisasi `Obstetri dan Ginekologi`.
-
-**Bukti akun dan spesialisasi:**
-
-- akun: `seed.py`, baris 16;
-- spesialisasi dan jadwal: `seed.py`, baris 30–34.
-
-**Pilar yang berkaitan:**
-
-- Class dan object: Alia dan Fakih memakai class `Doctor` yang sama, tetapi datanya berbeda.
-- Abstraksi: pemeriksaan memakai service yang sama.
-
-## Apoteker — Bintang
-
-Bintang adalah object `User` dengan `Role.PHARMACIST`.
-
-**Bukti akun:** `seed.py`, baris 11.
-
-Bintang menerima resep, mengecek obat, menyiapkan obat, dan menyerahkan obat.
-
-**Bukti source:**
-
-- route: `clinic/routes.py`, baris 401–405;
-- service: `PharmacyService.process()`, `clinic/services.py`, baris 203–228;
-- perubahan stok: `Medicine.change_stock()`, `clinic/models.py`, baris 222–231.
-
-**Pilar yang berkaitan:**
-
-- Abstraksi: route memanggil service farmasi.
-- Enkapsulasi: stok dikurangi melalui `change_stock()`.
-
-## Kasir — Fatur
-
-Fatur adalah object `User` dengan `Role.CASHIER`.
-
-**Bukti akun:** `seed.py`, baris 12.
-
-Kasir melihat tagihan dan memproses pembayaran.
-
-**Bukti source:**
-
-- route: `clinic/routes.py`, baris 408–422;
-- service: `BillingService`, `clinic/services.py`, baris 251–294;
-- model tagihan: `Invoice`, `clinic/models.py`, baris 314–324;
-- model pembayaran: `Payment`, `clinic/models.py`, baris 336–343.
-
-**Pilar yang berkaitan:**
-
-- Abstraksi: kasir memakai `BillingService.pay()`.
-- Inheritance: strategi General dan BPJS mewarisi `PaymentProcessor`.
-- Polimorfisme: `amounts()` memberi hasil berbeda.
-
-## Pasien
-
-Contoh pasien pada seed adalah Budi Santoso, Ratna Permata, dan Siti Aminah.
+- Budi Santoso;
+- Ratna Permata; dan
+- Siti Aminah.
 
 **Bukti akun:** `seed.py`, baris 17–19.
 
-Pasien dapat membuat janji dan melihat data miliknya sendiri.
+### Fitur yang Dilakukan Pasien
 
-**Bukti source:**
+- mendaftar akun;
+- melengkapi profil;
+- membuat appointment;
+- mengubah atau membatalkan appointment;
+- melihat antrean;
+- melihat rekam medis miliknya;
+- melihat resep;
+- melihat invoice dan struk.
 
-- pembuatan janji: `AppointmentService.book()`, `clinic/services.py`, baris 111–134;
-- route booking: `clinic/routes.py`, baris 192–199;
-- pembatasan data milik sendiri: `clinic/routes.py`, baris 44–70;
-- model pasien: `Patient`, `clinic/models.py`, baris 89–106.
+Catatan rujukan:
 
-**Pilar yang berkaitan:**
+Pasien adalah pihak yang dirujuk.
 
-- Abstraksi: pasien cukup mengisi form; service mengurus jadwal dan validasi.
-- Enkapsulasi: route membatasi pasien agar hanya melihat data miliknya.
-- Polimorfisme: pasien General dan BPJS mendapat hasil tagihan berbeda.
+Namun pengajuan rujukan dilakukan Dokter dan penerbitannya dilakukan Admin.
+
+Tidak ada route Pasien untuk menerbitkan rujukan sendiri.
+
+### Pilar OOP yang Digunakan Pasien
+
+#### Pilar: Abstraksi
+
+**Nama Pilar:**
+
+Abstraksi.
+
+**Dipakai di Fitur:**
+
+Booking appointment.
+
+**File:**
+
+- `clinic/routes.py`
+- `clinic/services.py`
+
+**Class:**
+
+`AppointmentService`
+
+**Method:**
+
+`book()`
+
+**Baris:**
+
+- Route booking: `clinic/routes.py`, baris 192–199.
+- `AppointmentService.book()`: `clinic/services.py`, baris 111–134.
+
+**Alur:**
+
+1. Pasien memilih dokter dan tanggal.
+2. Pasien memilih jam yang tersedia.
+3. Pasien mengisi keluhan.
+4. Route menerima form.
+5. Route memanggil `AppointmentService.book()`.
+6. Service memeriksa jadwal dan slot.
+7. Jika memilih BPJS, service memeriksa BPJS aktif.
+8. Object `Appointment` dibuat.
+9. Pasien mendapat notifikasi.
+
+**Kenapa termasuk pilar ini?**
+
+Pasien hanya mengisi form booking.
+
+Pasien tidak perlu mengetahui query jadwal dan database.
+
+**Gampangnya:**
+
+Pasien klik booking.
+
+Service mengurus pemeriksaan slot di belakangnya.
+
+**Kalau konsep ini tidak dipakai:**
+
+Halaman booking harus mengurus seluruh query dan validasi sendiri.
+
+Kode halaman menjadi rumit.
 
 ---
 
-# Tabel Bukti Source
+#### Pilar: Enkapsulasi
 
-| Pilar | File | Class | Method | Baris | Bukti sederhana |
-|---|---|---|---|---:|---|
-| Abstraksi | `clinic/services.py` | `PaymentProcessor` | `amounts()` | 231–248 | Menyediakan aturan sederhana tanpa satu rumus tetap. |
-| Abstraksi | `clinic/services.py` | `PharmacyService` | `process()` | 203–228 | Route tidak perlu mengetahui seluruh proses farmasi. |
-| Enkapsulasi | `clinic/models.py` | `Medicine` | `change_stock()` | 208–231 | Stok dijaga dengan validasi dan pencatatan. |
-| Enkapsulasi | `clinic/models.py` | `User` | `set_password()`, `check_password()` | 65–86 | Password disimpan dan diperiksa melalui method. |
-| Pewarisan | `clinic/services.py` | `GeneralPayment` | `amounts()` | 239–242 | Mewarisi `PaymentProcessor`. |
-| Pewarisan | `clinic/services.py` | `BPJSPayment` | `amounts()` | 245–248 | Mewarisi `PaymentProcessor`. |
-| Polimorfisme | `clinic/services.py` | `BillingService` | `invoice()`, `pay()` | 251–294 | Memanggil `amounts()` pada object General atau BPJS. |
+**Nama Pilar:**
+
+Enkapsulasi hak akses data pasien.
+
+**Dipakai di Fitur:**
+
+- melihat rekam medis;
+- melihat appointment;
+- melihat resep; dan
+- melihat struk milik sendiri.
+
+**File:**
+
+`clinic/routes.py`
+
+**Class:**
+
+- `Patient`
+- `Appointment`
+- `Visit`
+
+**Method:**
+
+- `visit_access()`
+- `appointment_access()`
+- `scoped_visits()`
+
+**Baris:**
+
+`clinic/routes.py`, baris 44–70.
+
+**Alur:**
+
+1. Pasien membuka data kunjungan.
+2. Route mengambil `current_user`.
+3. `visit_access()` membandingkan pemilik visit dengan user yang login.
+4. Jika bukan miliknya, sistem mengembalikan error 403.
+5. Jika miliknya, data boleh ditampilkan.
+6. `scoped_visits()` juga menyaring daftar visit berdasarkan pasien tersebut.
+
+**Kenapa termasuk pilar ini?**
+
+Data medis tidak dibuka bebas.
+
+Aksesnya dijaga melalui function tertentu.
+
+Ini adalah enkapsulasi pada batas akses aplikasi.
+
+**Gampangnya:**
+
+Rekam medis seperti lemari pribadi.
+
+Pasien hanya mendapat kunci untuk lemari miliknya.
+
+**Kalau konsep ini tidak dipakai:**
+
+Pasien dapat melihat data pasien lain.
+
+Ini berbahaya untuk privasi medis.
 
 ---
 
-# File yang Harus Dibuka Saat Presentasi
+#### Pilar: Polimorfisme / Polymorphism
 
-## Abstraksi
+**Nama Pilar:**
 
-Buka:
+Polymorphism hasil tagihan General dan BPJS.
 
-`clinic/services.py`
+**Dipakai di Fitur:**
 
-Lihat:
+Hasil invoice yang diterima pasien.
 
-- baris 231–248;
-- class `PaymentProcessor`;
-- method `amounts()`.
-
-Yang saya jelaskan:
-
-> “PaymentProcessor hanya memberi aturan bahwa setiap strategi pembayaran harus punya `amounts()`. Detail cara menghitung diserahkan kepada class General dan BPJS. Ini adalah abstraksi.”
-
-Jika ingin bukti tambahan, buka:
-
-- `clinic/routes.py`, baris 401–405; dan
-- `clinic/services.py`, baris 203–228.
-
-Jelaskan bahwa route farmasi cukup memanggil `PharmacyService.process()`.
-
-## Enkapsulasi
-
-Buka:
-
-`clinic/models.py`
-
-Lihat:
-
-- baris 208–231;
-- class `Medicine`;
-- attribute `_stock`;
-- method `change_stock()`.
-
-Yang saya jelaskan:
-
-> “Stok tidak diubah sembarangan. Method ini memeriksa jumlah, alasan, dan stok yang tersedia. Perubahannya juga dicatat. Ini adalah enkapsulasi.”
-
-## Pewarisan
-
-Buka:
+**File:**
 
 `clinic/services.py`
 
-Lihat:
+**Class:**
 
-- baris 231–248;
+- `GeneralPayment`
+- `BPJSPayment`
+- `BillingService`
+
+**Method:**
+
+`amounts()`
+
+**Baris:**
+
+`clinic/services.py`, baris 241–265.
+
+**Alur:**
+
+1. Appointment menyimpan apakah pasien memakai BPJS.
+2. `BillingService` memilih processor.
+3. Processor menjalankan `amounts(total)`.
+4. Pasien General mendapat nilai payable penuh.
+5. Pasien BPJS mendapat nilai payable Rp0.
+
+**Kenapa termasuk pilar ini?**
+
+Method yang sama menghasilkan tagihan berbeda sesuai object pembayaran.
+
+Pasien menerima hasil dari polymorphism tersebut.
+
+**Gampangnya:**
+
+Tagihan dihitung dengan perintah yang sama.
+
+Hasil pasien General dan BPJS berbeda.
+
+**Kalau konsep ini tidak dipakai:**
+
+Rumus General dan BPJS harus ditangani dengan percabangan langsung di banyak tempat.
+
+### Pilar yang Tidak Ditemukan Langsung pada Pasien
+
+- **Inheritance domain:** `Patient` tidak mewarisi `User`; keduanya memakai relasi `user_id`.
+- Inheritance strategi pembayaran memengaruhi tagihan pasien, tetapi tidak dijalankan langsung oleh aksi Pasien.
+
+---
+
+# TABEL RINGKAS PER ROLE
+
+| Role | Pilar | Fitur | File | Class/Method | Penjelasan |
+|---|---|---|---|---|---|
+| Admin | Abstraksi | Verifikasi appointment | `clinic/services.py` | `AppointmentService.verify()` | Route cukup memanggil service. |
+| Admin | Enkapsulasi | Status appointment dan antrean | `clinic/services.py`, `clinic/routes.py` | `claim_edit()`, `verify()`, `queue_action()` | Perubahan status diperiksa lebih dulu. |
+| Perawat | Abstraksi | Pemeriksaan awal | `clinic/services.py` | `WorkflowService.nurse()` | Service mengurus validasi dan penyimpanan. |
+| Perawat | Enkapsulasi | Vital sign dan status visit | `clinic/services.py` | `nurse()`, `transition()` | Nilai dan perpindahan status dijaga. |
+| Dokter | Abstraksi | Pemeriksaan dan resep | `clinic/services.py` | `WorkflowService.examine()` | Satu service mengurus pemeriksaan dan resep. |
+| Dokter | Enkapsulasi | Diagnosis, resep, status | `clinic/services.py` | `examine()`, `transition()` | Data harus valid sebelum disimpan. |
+| Apoteker | Abstraksi | Proses resep | `clinic/services.py` | `PharmacyService.process()` | Route hanya meneruskan aksi. |
+| Apoteker | Enkapsulasi | Pengurangan stok | `clinic/models.py` | `Medicine.change_stock()` | Stok dijaga dan perubahan dicatat. |
+| Kasir | Abstraksi | Invoice dan pembayaran | `clinic/services.py` | `BillingService.invoice()`, `pay()` | Detail pembayaran disembunyikan di service. |
+| Kasir | Enkapsulasi | Validasi dan status pembayaran | `clinic/services.py` | `BillingService.pay()` | Pembayaran melewati aturan yang sama. |
+| Kasir | Inheritance | Strategi General/BPJS | `clinic/services.py` | `GeneralPayment`, `BPJSPayment` | Keduanya mewarisi `PaymentProcessor`. |
+| Kasir | Polymorphism | Pembagian biaya | `clinic/services.py` | `amounts()` | Method sama memberi hasil berbeda. |
+| Pasien | Abstraksi | Booking | `clinic/services.py` | `AppointmentService.book()` | Pasien tidak perlu tahu query jadwal. |
+| Pasien | Enkapsulasi | Data medis milik sendiri | `clinic/routes.py` | `visit_access()`, `scoped_visits()` | Akses disaring berdasarkan pemilik. |
+| Pasien | Polymorphism | Hasil tagihan | `clinic/services.py` | `amounts()` | General dan BPJS menghasilkan payable berbeda. |
+
+---
+
+# MATRIX ROLE VS PILAR
+
+| Role | Abstraksi | Enkapsulasi | Pewarisan | Polimorfisme |
+|---|---|---|---|---|
+| Admin | Ya — service appointment | Ya — status dan akses | Tidak ditemukan implementasi langsung | Tidak ditemukan implementasi langsung |
+| Perawat | Ya — `WorkflowService.nurse()` | Ya — vital sign dan status | Tidak ditemukan implementasi langsung | Tidak ditemukan implementasi langsung |
+| Dokter | Ya — `WorkflowService.examine()` | Ya — pemeriksaan, resep, status | Tidak ditemukan inheritance domain langsung | Tidak ditemukan implementasi langsung |
+| Apoteker | Ya — `PharmacyService.process()` | Ya — `Medicine.change_stock()` | Tidak ditemukan implementasi langsung | Tidak ditemukan implementasi langsung |
+| Kasir | Ya — `BillingService` | Ya — aturan pembayaran | Ya — processor General/BPJS | Ya — `amounts()` |
+| Pasien | Ya — booking | Ya — akses data sendiri | Tidak ditemukan implementasi langsung | Ya — hasil tagihan General/BPJS |
+
+Catatan:
+
+`User(UserMixin, db.Model)` dan model yang mewarisi `db.Model` adalah inheritance dari framework.
+
+Matrix di atas fokus pada inheritance domain yang terlihat dalam fitur role.
+
+---
+
+# ALUR OOP DARI PASIEN SAMPAI SELESAI
+
+```text
+Pasien booking
+      ↓
+Admin verifikasi
+      ↓
+Perawat screening
+      ↓
+Dokter memeriksa
+      ↓
+Apoteker menyiapkan obat
+      ↓
+Kasir memproses pembayaran
+      ↓
+Selesai
+```
+
+## 1. Pasien Booking
+
+**Role:** Pasien
+
+**Fitur:** Membuat appointment.
+
+**Class:** `Patient`, `Doctor`, `Appointment`
+
+**Service/Method:** `AppointmentService.book()`
+
+**File:** `clinic/services.py`, baris 111–134.
+
+**Pilar OOP:** Abstraksi + Enkapsulasi aturan booking.
+
+**Kenapa:**
+
+Pasien cukup mengisi form.
+
+Service memeriksa jadwal, slot, dan BPJS.
+
+## 2. Admin Verifikasi
+
+**Role:** Admin
+
+**Fitur:** Memverifikasi appointment dan membuat antrean.
+
+**Class:** `Appointment`, `Visit`, `QueueCounter`
+
+**Service/Method:** `AppointmentService.verify()`
+
+**File:** `clinic/services.py`, baris 143–155.
+
+**Pilar OOP:** Abstraksi + Enkapsulasi status.
+
+**Kenapa:**
+
+Admin cukup memilih verifikasi.
+
+Service mengatur status dan nomor antrean dengan aturan tertentu.
+
+## 3. Perawat Screening
+
+**Role:** Perawat
+
+**Fitur:** Pemeriksaan awal dan vital sign.
+
+**Class:** `NursingAssessment`, `Visit`
+
+**Service/Method:** `WorkflowService.nurse()`
+
+**File:** `clinic/services.py`, baris 168–179.
+
+**Pilar OOP:** Abstraksi + Enkapsulasi.
+
+**Kenapa:**
+
+Service memvalidasi angka dan memindahkan status ke antrean dokter.
+
+## 4. Dokter Memeriksa
+
+**Role:** Dokter
+
+**Fitur:** Diagnosis, tindakan, dan resep.
+
+**Class:** `DoctorExamination`, `Prescription`, `PrescriptionItem`
+
+**Service/Method:** `WorkflowService.examine()`
+
+**File:** `clinic/services.py`, baris 181–200.
+
+**Pilar OOP:** Abstraksi + Enkapsulasi.
+
+**Kenapa:**
+
+Service memeriksa data lalu membuat object pemeriksaan dan resep.
+
+## 5. Apoteker Menyiapkan Obat
+
+**Role:** Apoteker
+
+**Fitur:** Proses resep dan stok.
+
+**Class:** `Prescription`, `Medicine`, `StockMovement`
+
+**Service/Method:** `PharmacyService.process()`, `Medicine.change_stock()`
+
+**File:**
+
+- `clinic/services.py`, baris 203–228;
+- `clinic/models.py`, baris 208–242.
+
+**Pilar OOP:** Abstraksi + Enkapsulasi.
+
+**Kenapa:**
+
+Service mengatur alur resep.
+
+Method Medicine menjaga perubahan stok.
+
+## 6. Kasir Memproses Pembayaran
+
+**Role:** Kasir
+
+**Fitur:** Invoice, pembayaran, dan struk.
+
+**Class:** `Invoice`, `Payment`, `PaymentProcessor`, `GeneralPayment`, `BPJSPayment`
+
+**Service/Method:** `BillingService.invoice()`, `BillingService.pay()`, `amounts()`
+
+**File:** `clinic/services.py`, baris 231–294.
+
+**Pilar OOP:** Abstraksi + Enkapsulasi + Inheritance + Polymorphism.
+
+**Kenapa:**
+
+BillingService menyederhanakan proses pembayaran.
+
+General dan BPJS mewarisi induk yang sama dan memberi hasil `amounts()` yang berbeda.
+
+## 7. Selesai
+
+**Role:** Sistem setelah Kasir.
+
+**Fitur:** Menyelesaikan visit dan appointment.
+
+**Class:** `Visit`, `Appointment`, `Invoice`, `Payment`
+
+**Service/Method:** `WorkflowService.transition()`, `BillingService.pay()`
+
+**File:** `clinic/services.py`, baris 270–294.
+
+**Pilar OOP:** Enkapsulasi workflow.
+
+**Kenapa:**
+
+Visit hanya menjadi `COMPLETED` setelah pembayaran valid.
+
+---
+
+# FILE PRESENTASI PER ROLE
+
+## ADMIN
+
+**Buka:**
+
+- `clinic/routes.py`, baris 235–241;
+- `clinic/services.py`, baris 143–155.
+
+**Tunjukkan:**
+
+`appointment_action()` memanggil `AppointmentService.verify()`.
+
+**Kalimat presentasi:**
+
+> “Admin memakai abstraksi karena route cukup memanggil service. Enkapsulasinya terlihat saat status diverifikasi sebelum diubah.”
+
+## PERAWAT
+
+**Buka:**
+
+- `clinic/routes.py`, baris 374–378;
+- `clinic/services.py`, baris 160–179.
+
+**Tunjukkan:**
+
+`WorkflowService.nurse()` dan `transition()`.
+
+**Kalimat presentasi:**
+
+> “Perawat mengisi form. Service memvalidasi vital sign dan memindahkan pasien ke antrean dokter.”
+
+## DOKTER
+
+**Buka:**
+
+- `clinic/routes.py`, baris 381–398;
+- `clinic/services.py`, baris 181–200;
+- `clinic/models.py`, baris 109–114.
+
+**Tunjukkan:**
+
+`WorkflowService.examine()` serta relasi `Doctor` ke `User`.
+
+**Kalimat presentasi:**
+
+> “Fakih dan Alia memakai class Doctor yang sama. Doctor tidak mewarisi User; keduanya terhubung dengan user_id.”
+
+## APOTEKER
+
+**Buka:**
+
+- `clinic/services.py`, baris 203–228;
+- `clinic/models.py`, baris 208–242.
+
+**Tunjukkan:**
+
+`PharmacyService.process()` memanggil `Medicine.change_stock()`.
+
+**Kalimat presentasi:**
+
+> “Apoteker memakai abstraksi pada service farmasi dan enkapsulasi pada perubahan stok.”
+
+## KASIR
+
+**Buka:**
+
+`clinic/services.py`, baris 231–294.
+
+**Tunjukkan:**
+
 - `PaymentProcessor`;
-- `GeneralPayment(PaymentProcessor)`;
-- `BPJSPayment(PaymentProcessor)`.
+- `GeneralPayment`;
+- `BPJSPayment`;
+- `processor.amounts(total)`;
+- `BillingService.pay()`.
 
-Yang saya jelaskan:
+**Kalimat presentasi:**
 
-> “GeneralPayment dan BPJSPayment adalah class anak. Keduanya mewarisi aturan `amounts()` dari PaymentProcessor. Ini adalah inheritance.”
+> “Kasir adalah bagian yang paling lengkap. Di sini ada abstraksi, enkapsulasi, inheritance, dan polymorphism.”
 
-## Polimorfisme
+## PASIEN
 
-Buka:
+**Buka:**
 
-`clinic/services.py`
+- `clinic/services.py`, baris 111–134;
+- `clinic/routes.py`, baris 44–70.
 
-Lihat:
+**Tunjukkan:**
 
-- baris 241–248 untuk dua hasil `amounts()`;
-- baris 251–265 untuk pemilihan object dan pemanggilan method.
+`AppointmentService.book()`, `visit_access()`, dan `scoped_visits()`.
 
-Yang saya jelaskan:
+**Kalimat presentasi:**
 
-> “BillingService memanggil method yang sama, yaitu `amounts()`. Jika object-nya General, pasien membayar total. Jika object-nya BPJS, pasien membayar nol. Ini adalah polymorphism.”
-
-## Class dan Object Dokter
-
-Buka:
-
-- `clinic/models.py`, baris 109–114; dan
-- `seed.py`, baris 15–16 serta 30–34.
-
-Yang saya jelaskan:
-
-> “Doctor adalah class atau cetakan. Fakih dan Alia adalah dua object berbeda dari class Doctor. Spesialisasi dan jadwal mereka berbeda.”
+> “Pasien memakai abstraksi saat booking dan enkapsulasi akses saat melihat data miliknya sendiri.”
 
 ---
 
-# Jawaban Singkat Saat Dosen Bertanya
+# CHEAT SHEET PERTANYAAN PER ROLE
 
-## Pertanyaan tentang Abstraksi
+## Admin
 
-**Dosen:** Apa itu abstraksi?
-
-**Jawaban:**
-
-> “Abstraksi artinya kita memakai fungsi penting tanpa perlu tahu semua detail rumit di belakangnya.”
-
-**Dosen:** Mana abstraksinya?
+**Dosen:** “Di Admin ada OOP apa?”
 
 **Jawaban:**
 
-> “Buka `clinic/services.py` baris 231. Ada `PaymentProcessor` dengan method `amounts()`. Class itu memberi aturan umum, sedangkan cara menghitungnya diserahkan ke General dan BPJS.”
+> “Ada abstraksi dan enkapsulasi. Contohnya saat verifikasi appointment. Route di `clinic/routes.py` memanggil `AppointmentService.verify()` di `clinic/services.py`. Status diperiksa sebelum diubah.”
 
-## Pertanyaan tentang Enkapsulasi
+## Perawat
 
-**Dosen:** Apa itu enkapsulasi?
-
-**Jawaban:**
-
-> “Enkapsulasi artinya data penting dijaga supaya tidak diubah sembarangan.”
-
-**Dosen:** Mana enkapsulasinya?
+**Dosen:** “Di Perawat ada OOP apa?”
 
 **Jawaban:**
 
-> “Buka `clinic/models.py` baris 208. Stok Medicine disimpan sebagai `_stock` dan diubah lewat `change_stock()`. Method itu memeriksa stok dan mencatat perubahannya.”
+> “Ada abstraksi dan enkapsulasi. `WorkflowService.nurse()` memvalidasi vital sign, menyimpan NursingAssessment, lalu memindahkan status ke antrean dokter.”
 
-## Pertanyaan tentang Pewarisan
+## Dokter
 
-**Dosen:** Apa itu inheritance?
-
-**Jawaban:**
-
-> “Inheritance adalah pewarisan. Class anak menerima aturan dasar dari class induk.”
-
-**Dosen:** Mana inheritance-nya?
+**Dosen:** “Di Dokter ada OOP apa?”
 
 **Jawaban:**
 
-> “Buka `clinic/services.py` baris 233 sampai 248. `GeneralPayment` dan `BPJSPayment` mewarisi `PaymentProcessor`.”
+> “Ada abstraksi dan enkapsulasi pada `WorkflowService.examine()`. Service mengurus diagnosis, resep, dan perubahan status. Doctor tidak mewarisi User pada source ini.”
 
-**Dosen:** Apakah Doctor mewarisi User?
+## Apoteker
 
-**Jawaban:**
-
-> “Tidak pada source ini. Doctor terhubung ke User melalui `user_id`. Inheritance domain yang nyata ada pada strategi pembayaran.”
-
-## Pertanyaan tentang Polimorfisme
-
-**Dosen:** Apa itu polymorphism?
+**Dosen:** “Di Apoteker mana enkapsulasinya?”
 
 **Jawaban:**
 
-> “Polymorphism artinya nama method sama, tetapi hasilnya bisa berbeda sesuai object yang menjalankan.”
+> “Ada di `Medicine.change_stock()` pada `clinic/models.py`. Stok tidak dikurangi langsung. Method memeriksa stok dan mencatat perubahannya.”
 
-**Dosen:** Mana polymorphism-nya?
+## Kasir
 
-**Jawaban:**
-
-> “Buka `clinic/services.py` baris 241 sampai 264. General dan BPJS sama-sama punya `amounts()`, tetapi hasilnya berbeda. BillingService memanggil nama method yang sama.”
-
-## Pertanyaan Umum
-
-**Dosen:** Apa beda class dan object?
+**Dosen:** “Di Kasir mana inheritance dan polymorphism?”
 
 **Jawaban:**
 
-> “Class adalah cetakan. Object adalah hasil nyata dari cetakan. Doctor adalah class, sedangkan Fakih dan Alia adalah object.”
+> “Buka `clinic/services.py`. GeneralPayment dan BPJSPayment mewarisi PaymentProcessor. Keduanya punya `amounts()`, tetapi hasilnya berbeda. Itu inheritance dan polymorphism.”
 
-**Dosen:** Apa beda abstraksi dan enkapsulasi?
+## Pasien
 
-**Jawaban:**
-
-> “Abstraksi menyembunyikan proses yang rumit. Enkapsulasi menjaga data agar tidak diubah sembarangan.”
-
-**Dosen:** Apakah semua role memakai semua pilar?
+**Dosen:** “Di Pasien ada OOP apa?”
 
 **Jawaban:**
 
-> “Tidak. Pilar dipakai sesuai kebutuhan. Contohnya enkapsulasi stok paling dekat dengan apoteker, sedangkan polymorphism pembayaran paling dekat dengan kasir dan pasien.”
+> “Ada abstraksi saat booking melalui `AppointmentService.book()`. Ada enkapsulasi akses melalui `visit_access()` supaya pasien hanya melihat data miliknya.”
 
-**Dosen:** Apakah QRIS dan Tunai sudah polymorphic?
+## Pertanyaan Tambahan
 
-**Jawaban:**
-
-> “Belum. Pada source sekarang, QRIS dan Tunai masih berupa pilihan teks. Polymorphism yang jelas ada pada GeneralPayment dan BPJSPayment.”
-
-**Dosen:** Apa manfaat OOP untuk klinik?
+**Dosen:** “Apakah setiap role memakai empat pilar?”
 
 **Jawaban:**
 
-> “Kode menjadi lebih rapi. Data dan tugas setiap bagian lebih jelas. Aturan penting juga tidak perlu ditulis berulang.”
+> “Tidak. Saya hanya memetakan pilar yang terlihat langsung pada source. Empat pilar paling lengkap terlihat pada alur Kasir.”
+
+**Dosen:** “Apakah Tunai dan QRIS polymorphic?”
+
+**Jawaban:**
+
+> “Belum. Tunai dan QRIS masih berupa teks. Polymorphism yang nyata ada pada GeneralPayment dan BPJSPayment.”
+
+**Dosen:** “Apakah Doctor mewarisi User?”
+
+**Jawaban:**
+
+> “Tidak. Doctor mempunyai user_id dan berelasi dengan User. Inheritance domain yang nyata ada pada strategi pembayaran.”
 
 ---
 
-# Cheat Sheet Presentasi
+# KESIMPULAN AUDIT
 
-## Arti Istilah
+## Pilar yang Ditemukan per Role
 
-| Istilah | Arti paling mudah |
-|---|---|
-| Class | Cetakan. |
-| Object | Hasil nyata dari cetakan. |
-| Attribute | Data milik object. |
-| Method | Fungsi milik class. |
-| Service | Bagian yang mengurus satu kelompok pekerjaan. |
-| Abstraksi | Pakai yang penting, sembunyikan detail rumit. |
-| Enkapsulasi | Jaga data agar tidak diubah sembarangan. |
-| Inheritance | Class anak menerima aturan dari class induk. |
-| Polymorphism | Method sama, hasil dapat berbeda. |
+- **Admin:** Abstraksi dan Enkapsulasi.
+- **Perawat:** Abstraksi dan Enkapsulasi.
+- **Dokter:** Abstraksi dan Enkapsulasi.
+- **Apoteker:** Abstraksi dan Enkapsulasi.
+- **Kasir:** Abstraksi, Enkapsulasi, Inheritance, dan Polymorphism.
+- **Pasien:** Abstraksi, Enkapsulasi, dan hasil Polymorphism pembayaran.
 
-## Empat Pilar dalam Empat Kalimat
+## Batas Implementasi yang Harus Disampaikan Jujur
 
-1. **Abstraksi:** `PaymentProcessor` menunjukkan fungsi penting dan menyembunyikan cara hitung.
-2. **Enkapsulasi:** `Medicine.change_stock()` menjaga perubahan stok.
-3. **Inheritance:** `GeneralPayment` dan `BPJSPayment` mewarisi `PaymentProcessor`.
-4. **Polymorphism:** `amounts()` memberi hasil berbeda untuk General dan BPJS.
+- Role bukan class anak dari `User`.
+- `Doctor` dan `Patient` berelasi dengan `User`, bukan mewarisinya.
+- Tunai, Transfer, QRIS, dan Debit belum menjadi class payment terpisah.
+- Aksi farmasi masih memakai percabangan `action`, bukan polymorphism.
+- Tidak ada method `process_payment()`.
+- Tidak ada method `racik_obat()`.
+- Pasien tidak menerbitkan rujukan sendiri; Dokter mengajukan dan Admin memprosesnya.
 
-## Urutan Presentasi yang Disarankan
+## Konfirmasi Perubahan
 
-1. Jelaskan OOP dengan contoh klinik.
-2. Jelaskan class sebagai cetakan.
-3. Jelaskan object dengan Fakih dan Alia.
-4. Buka `PaymentProcessor` untuk abstraksi.
-5. Buka `Medicine.change_stock()` untuk enkapsulasi.
-6. Tunjukkan tanda kurung pada `GeneralPayment(PaymentProcessor)` untuk inheritance.
-7. Tunjukkan dua hasil `amounts()` untuk polymorphism.
-8. Jelaskan dengan jujur bahwa role bukan turunan `User` pada source ini.
-9. Tutup dengan manfaat OOP untuk sistem klinik.
+Dokumen ini hanya mengaudit dan menjelaskan source.
 
-## Kalimat Hafalan
+Tidak ada perubahan pada:
 
-> **Abstraksi menyederhanakan. Enkapsulasi menjaga. Inheritance mewariskan. Polymorphism membedakan hasil.**
-
----
-
-# Kesimpulan Audit
-
-Empat pilar OOP ditemukan pada aplikasi Flask Medika Husada.
-
-Kekuatan penerapannya berbeda-beda:
-
-- Abstraksi terlihat pada `PaymentProcessor` dan service layer.
-- Enkapsulasi terlihat pada password, stok obat, dan perpindahan status.
-- Inheritance domain terlihat jelas pada strategi pembayaran.
-- Polymorphism terlihat pada hasil `amounts()` untuk General dan BPJS.
-
-Hal yang harus disampaikan dengan jujur:
-
-- `Doctor` dan `Patient` tidak mewarisi `User`.
-- Admin, Perawat, Apoteker, dan Kasir adalah role, bukan class anak.
-- Tunai, Transfer, QRIS, dan Debit belum menjadi class polymorphic terpisah.
-- `begitulah.py` berisi contoh PBO, tetapi tidak dipakai sebagai bukti aplikasi yang berjalan karena tidak diimpor oleh `app.py` atau package `clinic`.
-
-Dokumen ini hanya menjelaskan source yang sudah ada.
-
-Tidak ada perubahan model, service, route, database, workflow, login, role, UI, atau behavior aplikasi untuk membuat dokumentasi ini.
+- model;
+- service;
+- route;
+- database;
+- workflow;
+- login/logout;
+- UI;
+- role; atau
+- fitur aplikasi.
