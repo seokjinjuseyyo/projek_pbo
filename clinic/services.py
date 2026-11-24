@@ -1,15 +1,29 @@
 """Layanan domain transaksional. Route melakukan commit sekali; kegagalan membatalkan seluruh perubahan transaksi."""
-from abc import ABC, abstractmethod
 from datetime import date, datetime, timedelta
 from pathlib import Path
-import math
 import secrets
 from flask import current_app
-from sqlalchemy import select, update
+from sqlalchemy import update
 from sqlalchemy.dialects.sqlite import insert
 from . import db
 from .models import *
 from .clock import now as clock_now, today as clock_today
+from .interfaces import PaymentProcessorResolver
+# Nama strategi tetap diekspor dari modul ini agar import lama tidak rusak.
+from .payments import (
+    BPJSPayment,
+    GeneralPayment,
+    PaymentProcessor,
+    PaymentProcessorRegistry,
+    create_default_payment_resolver,
+)
+from .validators import (
+    DoctorExaminationValidator,
+    NursingAssessmentValidator,
+    PrescriptionValidator,
+    number,
+    required,
+)
 
 LABELS={
     'WAITING_VERIFICATION':'Menunggu verifikasi ulang',
@@ -36,23 +50,6 @@ def generate_supplier_invoice_number(created_at=None):
         if not SupplierPurchase.query.filter_by(supplier_invoice=number).first():
             return number
     raise ValueError('Nomor faktur pemasok otomatis tidak tersedia untuk tanggal ini.')
-
-
-def required(data, key, limit=4000):
-    value=str(data.get(key, '')).strip()
-    if not value or len(value)>limit:
-        raise ValueError(f'{key.replace("_", " ").capitalize()} wajib diisi (maks. {limit} karakter).')
-    return value
-
-
-def number(data, key, minimum, maximum, integer=False):
-    try:
-        value=float(data.get(key, ''))
-    except (ValueError, TypeError):
-        raise ValueError(f'{key} harus berupa angka.')
-    if not math.isfinite(value) or not minimum<=value<=maximum or (integer and not value.is_integer()):
-        raise ValueError(f'{key} harus antara {minimum} dan {maximum}.')
-    return int(value) if integer else value
 
 
 class NotificationService:
@@ -166,38 +163,22 @@ class WorkflowService:
 
     @staticmethod
     def nurse(v, actor, data):
-        values={}
-        ranges={'systolic':(40,300,True),'diastolic':(20,200,True),'temperature':(30,45,False),
-                'weight':(1,500,False),'height':(30,250,False),'pulse':(20,250,True),
-                'respiration':(1,100,True),'spo2':(1,100,True),'pain':(0,10,True)}
-        for key,(lo,hi,integer) in ranges.items(): values[key]=number(data,key,lo,hi,integer)
-        values['complaint']=required(data,'complaint')
-        values['notes']=data.get('notes','')[:4000]
+        values=NursingAssessmentValidator.validate(data)
         WorkflowService.transition(v,[VisitStatus.WAITING_NURSE],VisitStatus.WAITING_DOCTOR)
         db.session.add(NursingAssessment(visit=v,nurse_id=actor.id,**values))
         v.appointment.status=AppointmentStatus.CHECKED_IN
 
     @staticmethod
     def examine(v, data, items):
-        fields={key:required(data,key) for key in ('anamnesis','physical','diagnosis')}
-        for key in ('assessment','secondary','icd10','treatment','notes','recommendation','followup','laboratory'):
-            fields[key]=str(data.get(key,''))[:4000]
-        fields['treatment_fee']=number(data,'treatment_fee',0,100000000,True)
-        prescription=Prescription()
-        seen=set()
-        for item in items:
-            medicine=db.session.get(Medicine,number(item,'medicine_id',1,1000000,True))
-            if not medicine or medicine.id in seen: raise ValueError('Obat tidak valid atau duplikat. Gabungkan jumlahnya.')
-            seen.add(medicine.id)
-            prescription.items.append(PrescriptionItem(medicine=medicine, quantity=number(item,'quantity',1,10000,True),price=medicine.price,
-                **{key:required(item,key,80) for key in ('dosage','frequency','duration','timing')},instruction=str(item.get('instruction',''))[:300]))
+        fields=DoctorExaminationValidator.validate(data)
+        prescription=Prescription(items=[PrescriptionItem(**item) for item in PrescriptionValidator.validate(items)])
         WorkflowService.transition(v,[VisitStatus.WITH_DOCTOR],VisitStatus.WAITING_PHARMACY if items else VisitStatus.WAITING_PAYMENT)
         db.session.add(DoctorExamination(visit=v,**fields))
         if items:
             prescription.visit=v
             db.session.add(prescription)
         else:
-            BillingService.invoice(v)
+            billing_service.invoice(v)
 
 
 class PharmacyService:
@@ -224,33 +205,21 @@ class PharmacyService:
         elif action=='handover':
             WorkflowService.transition(v,[VisitStatus.MEDICINE_READY],VisitStatus.WAITING_PAYMENT)
             p.status=PrescriptionStatus.DISPENSED
-            BillingService.invoice(v)
+            billing_service.invoice(v)
         else: raise ValueError('Aksi farmasi tidak dikenal.')
 
 
-# PBO - Abstraksi:
-# Kontrak amounts() wajib diimplementasikan oleh setiap strategi pembayaran.
-class PaymentProcessor(ABC):
-    @abstractmethod
-    def amounts(self, total):
-        """Mengembalikan (tanggungan asuransi, jumlah yang dibayar pasien)."""
-
-
-# PBO - Pewarisan:
-# Strategi umum mewarisi kontrak PaymentProcessor dan mengimplementasikan amounts().
-class GeneralPayment(PaymentProcessor):
-    def amounts(self,total): return 0,total
-
-
-# PBO - Polimorfisme:
-# amounts() pada strategi BPJS menghasilkan tanggungan berbeda dari strategi umum.
-class BPJSPayment(PaymentProcessor):
-    def amounts(self,total): return total,0
-
-
 class BillingService:
-    @staticmethod
-    def invoice(v):
+    def __init__(self, processor_resolver: PaymentProcessorResolver):
+        if not isinstance(processor_resolver, PaymentProcessorResolver):
+            raise TypeError('BillingService membutuhkan PaymentProcessorResolver.')
+        self._processor_resolver=processor_resolver
+
+    def _amounts(self, appointment, total):
+        processor=self._processor_resolver.resolve(appointment)
+        return processor.amounts(total)
+
+    def invoice(self, v):
         if v.invoice: return v.invoice
         items=[InvoiceItem(description='Konsultasi dokter',category='consultation',quantity=1,price=v.doctor.fee)]
         if v.examination and v.examination.treatment_fee:
@@ -258,16 +227,12 @@ class BillingService:
         if v.prescription:
             items.extend(InvoiceItem(description=i.medicine.name,category='medicine',quantity=i.quantity,price=i.price) for i in v.prescription.items)
         total=sum(i.quantity*i.price for i in items)
-        processor=BPJSPayment() if v.appointment.insurance else GeneralPayment()
-        # PBO - Polimorfisme:
-        # Pemanggilan amounts() yang sama mengikuti implementasi objek strategi terpilih.
-        coverage,payable=processor.amounts(total)
+        coverage,payable=self._amounts(v.appointment,total)
         inv=Invoice(visit=v,number=f'INV-{v.appointment.date:%Y%m%d}-{v.id:05}',subtotal=total,coverage=coverage,payable=payable,items=items)
         db.session.add(inv)
         return inv
 
-    @staticmethod
-    def pay(v, actor, data):
+    def pay(self, v, actor, data):
         inv=v.invoice
         if not inv: raise ValueError('Tagihan belum tersedia.')
         discount=number(data,'discount',0,inv.subtotal,True)
@@ -276,7 +241,7 @@ class BillingService:
         if not v.appointment.insurance and method=='BPJS': raise ValueError('Kunjungan ini bukan BPJS.')
         status=PaymentStatus.BPJS_COVERED if v.appointment.insurance else PaymentStatus.PAID
         inv.discount=discount
-        inv.coverage,inv.payable=(BPJSPayment() if v.appointment.insurance else GeneralPayment()).amounts(inv.subtotal-discount)
+        inv.coverage,inv.payable=self._amounts(v.appointment,inv.subtotal-discount)
         cash_change=0
         if method=='Tunai':
             # Validasi nominal tunai dan hitung kembalian sebelum transaksi diselesaikan.
@@ -292,6 +257,163 @@ class BillingService:
         db.session.add(payment)
         v.appointment.status=AppointmentStatus.COMPLETED
         return payment
+
+
+billing_service=BillingService(create_default_payment_resolver())
+
+
+class ReferralService:
+    """Mengatur lifecycle rujukan; route hanya menangani request dan response."""
+
+    @staticmethod
+    def sign(visit):
+        if not visit.referral or visit.referral.status!='Menunggu TTD':
+            raise ValueError('Surat rujukan tidak tersedia untuk ditandatangani.')
+        visit.referral.status='Selesai'
+        visit.referral.signed_at=clock_now()
+        return 'Surat rujukan berhasil ditandatangani.'
+
+    @staticmethod
+    def request(visit, data):
+        if not visit.examination: raise ValueError('Selesaikan pemeriksaan dokter sebelum mengajukan rujukan.')
+        if visit.referral or visit.referral_request: raise ValueError('Kunjungan ini sudah memiliki surat atau pengajuan rujukan.')
+        db.session.add(ReferralRequest(visit=visit,
+            specialist=required(data,'specialist',160),hospital=required(data,'hospital',160),
+            reason=required(data,'reason',4000)))
+        return 'Permintaan rujukan berhasil dikirim ke admin.'
+
+    @staticmethod
+    def issue(referral_request, actor, data):
+        if referral_request.status!='PENDING' or referral_request.visit.referral:
+            raise ValueError('Permintaan ini sudah diproses.')
+        visit=referral_request.visit
+        db.session.add(Referral(visit=visit,number=f'RJK-{clock_today():%Y%m%d}-{visit.id:05}',
+            specialist=required(data,'specialist',160),hospital=required(data,'hospital',160),
+            reason=referral_request.reason,notes=str(data.get('notes',''))[:4000]))
+        referral_request.status='ISSUED'
+        referral_request.admin=actor
+        referral_request.completed_at=clock_now()
+        return 'Surat rujukan berhasil dibuat.'
+
+    @staticmethod
+    def reject(referral_request, actor, data):
+        if referral_request.status!='PENDING' or referral_request.visit.referral:
+            raise ValueError('Permintaan ini sudah diproses.')
+        referral_request.status='REJECTED'
+        referral_request.admin=actor
+        referral_request.completed_at=clock_now()
+        referral_request.rejection_reason=required(data,'rejection_reason',4000)
+        return 'Permintaan surat rujukan ditolak.'
+
+    @staticmethod
+    def archive(visit, data):
+        if visit.referral or visit.referral_request or not visit.examination:
+            raise ValueError('Kunjungan ini tidak tersedia untuk pencatatan surat lama.')
+        try:
+            issued_date=date.fromisoformat(data.get('issued_date',''))
+        except ValueError:
+            raise ValueError('Tanggal surat tidak valid.')
+        db.session.add(Referral(visit=visit,number=required(data,'number',40),
+            specialist=required(data,'specialist',160),hospital=required(data,'hospital',160),
+            reason=required(data,'reason',4000),notes=str(data.get('notes',''))[:4000],
+            created_at=datetime.combine(issued_date,datetime.min.time())))
+        return 'Surat rujukan lama berhasil dicatat.'
+
+
+class InventoryService:
+    """Mengatur data obat dan perubahan stok manual."""
+
+    @staticmethod
+    def save_medicine(medicine, data, actor):
+        medicine.name=required(data,'name',160)
+        medicine.category=required(data,'category',80)
+        medicine.unit=required(data,'unit',32)
+        medicine.price=number(data,'price',0,100000000,True)
+        medicine.minimum=number(data,'minimum',0,1000000,True)
+        medicine.expiry=date.fromisoformat(data['expiry']) if data.get('expiry') else None
+        db.session.add(medicine)
+        db.session.flush()
+        delta=number(data,'delta',-1000000,1000000,True)
+        if delta>0 and actor.role==Role.PHARMACIST:
+            raise ValueError('Penambahan stok harus diajukan melalui pembelian pemasok dan disetujui admin.')
+        if delta:
+            medicine.change_stock(delta,required(data,'reason',200),actor.id)
+
+
+class SupplierPurchaseService:
+    """Mengatur pengajuan dan keputusan pembelian pemasok."""
+
+    @staticmethod
+    def request(actor, data):
+        ids=data.getlist('medicine_id')
+        quantities=data.getlist('quantity')
+        costs=data.getlist('estimated_unit_cost')
+        if not ids or len(ids)!=len(quantities) or len(ids)!=len(costs) or len(ids)>50:
+            raise ValueError('Tambahkan minimal satu obat dengan jumlah dan harga yang lengkap (maks. 50 obat).')
+        parsed=[]
+        seen=set()
+        for raw_id,raw_quantity,raw_cost in zip(ids,quantities,costs):
+            try: medicine_id=int(raw_id)
+            except (ValueError,TypeError): raise ValueError('Pilih obat yang valid untuk setiap baris.')
+            if medicine_id in seen: raise ValueError('Obat yang sama tidak boleh dimasukkan lebih dari sekali; gabungkan jumlahnya dalam satu baris.')
+            seen.add(medicine_id)
+            medicine=db.session.get(Medicine,medicine_id)
+            if not medicine: raise ValueError('Pilih obat yang valid untuk setiap baris.')
+            quantity=number({'quantity':raw_quantity},'quantity',1,1000000,True)
+            cost=number({'estimated_unit_cost':raw_cost},'estimated_unit_cost',1,100000000,True)
+            parsed.append((medicine,quantity,cost))
+        first_medicine,first_quantity,first_cost=parsed[0]
+        purchase=SupplierPurchase(supplier=required(data,'supplier',160),medicine=first_medicine,
+            pharmacist_id=actor.id,requested_quantity=first_quantity,estimated_unit_cost=first_cost,
+            reason=required(data,'reason',400))
+        db.session.add(purchase)
+        db.session.flush()
+        for medicine,quantity,cost in parsed:
+            db.session.add(SupplierPurchaseItem(purchase=purchase,medicine=medicine,
+                requested_quantity=quantity,estimated_unit_cost=cost))
+        return purchase
+
+    @staticmethod
+    def approve(purchase, actor, data):
+        if purchase.status!=SupplierPurchaseStatus.PENDING_PURCHASE_APPROVAL:
+            raise ValueError('Pengajuan pembelian tidak sedang menunggu keputusan.')
+        received_at=clock_now()
+        if not (purchase.supplier_invoice or '').strip():
+            purchase.supplier_invoice=generate_supplier_invoice_number(received_at)
+        items=purchase.items or [purchase]
+        amount=0
+        for item in items:
+            quantity=item.requested_quantity
+            unit_cost=item.estimated_unit_cost
+            amount+=quantity*unit_cost
+            movement_reason=f'Pembelian pemasok {purchase.supplier}; pengajuan #{purchase.id}'[:200]
+            item.medicine.change_stock(quantity,movement_reason,actor.id)
+            item.received_quantity=quantity
+            item.actual_unit_cost=unit_cost
+        purchase.received_quantity=purchase.requested_quantity
+        purchase.actual_unit_cost=purchase.estimated_unit_cost
+        purchase.received_at=received_at
+        purchase.status=SupplierPurchaseStatus.PURCHASE_COMPLETED
+        expense=purchase.expense_invoice
+        if expense is None:
+            expense=ExpenseInvoice(purchase=purchase,number=f'EXP-{received_at:%Y%m%d}-{purchase.id:05}',
+                supplier=purchase.supplier,amount=amount,created_at=received_at)
+            db.session.add(expense)
+        else:
+            expense.supplier=purchase.supplier
+            expense.amount=amount
+        purchase.purchase_decided_by=actor.id
+        purchase.purchase_decided_at=clock_now()
+        purchase.purchase_decision_note=data.get('note','')[:400]
+
+    @staticmethod
+    def reject(purchase, actor, data):
+        if purchase.status!=SupplierPurchaseStatus.PENDING_PURCHASE_APPROVAL:
+            raise ValueError('Pengajuan pembelian tidak sedang menunggu keputusan.')
+        purchase.status=SupplierPurchaseStatus.PURCHASE_REJECTED
+        purchase.purchase_decided_by=actor.id
+        purchase.purchase_decided_at=clock_now()
+        purchase.purchase_decision_note=required(data,'note',400)
 
 
 class PatientService:

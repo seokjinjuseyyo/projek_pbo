@@ -90,7 +90,10 @@ def create_app(config=None):
                 connection.execute(text('ALTER TABLE patient ADD COLUMN foto_ktp VARCHAR(255)'))
             if 'foto_bpjs' not in patient_columns:
                 connection.execute(text('ALTER TABLE patient ADD COLUMN foto_bpjs VARCHAR(255)'))
-        Index('uq_user_sip', User.sip, unique=True).create(bind=db.engine, checkfirst=True)
+        sip_index=next((index for index in User.__table__.indexes if index.name=='uq_user_sip'),None)
+        if sip_index is None:
+            sip_index=Index('uq_user_sip',User.sip,unique=True)
+        sip_index.create(bind=db.engine,checkfirst=True)
         from .services import generate_supplier_invoice_number
         for purchase in SupplierPurchase.query.filter(SupplierPurchase.received_at.isnot(None)).all():
             if not (purchase.supplier_invoice or '').strip():

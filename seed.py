@@ -66,8 +66,8 @@ def seed_data(demo=True):
         medicine=Medicine.query.first()
         v.prescription=Prescription(status=PrescriptionStatus.DISPENSED,items=[PrescriptionItem(medicine=medicine,quantity=2,price=medicine.price,dosage='Sesuai petunjuk dokter',frequency='Sesuai kebutuhan',duration='Sesuai evaluasi',timing='Sesudah makan',instruction='Data resep demo, bukan anjuran pengobatan.')])
         medicine.change_stock(-2,'Resep historis demo',User.query.filter_by(role=Role.PHARMACIST).first().id,v.id)
-        from clinic.services import BillingService
-        inv=BillingService.invoice(v); inv.status=PaymentStatus.PAID
+        from clinic.services import billing_service
+        inv=billing_service.invoice(v); inv.status=PaymentStatus.PAID
         inv.payment=Payment(admin_id=User.query.filter_by(role=Role.ADMIN).first().id,amount=inv.payable,method='Tunai',status=PaymentStatus.PAID,created_at=datetime.now()-timedelta(days=7))
         NotificationService.send(p,'Selamat datang. Riwayat contoh tersedia pada Rekam Medis Saya.')
         db.session.commit()

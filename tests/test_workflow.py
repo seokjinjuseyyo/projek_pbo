@@ -1,11 +1,13 @@
 from datetime import date, timedelta
+from io import BytesIO
 import pytest
 from clinic import db
 from clinic.models import *
 from clinic.services import *
 
 
-PASSWORDS={'admin':'Admin123!','perawat':'Perawat123!','apoteker':'Apoteker123!','fakih':'Dokter123!','alia':'Dokter123!','pasien':'Pasien123!','ratna':'Pasien123!','siti':'Pasien123!'}
+PASSWORDS={'komang':'Admin123!','gea':'Perawat123!','bintang':'Apoteker123!','fatur':'Kasir123!',
+           'fakih':'Dokter123!','alia':'Dokter123!','pasien':'Pasien123!','ratna':'Pasien123!','siti':'Pasien123!'}
 
 
 def login(client,role):
@@ -26,7 +28,7 @@ def book(client,insurance=False):
 
 def verified(client,insurance=False):
     aid=book(client,insurance)
-    login(client,'admin')
+    login(client,'komang')
     response=client.post(f'/appointments/{aid}/verify')
     assert response.status_code==302
     v=Visit.query.filter_by(appointment_id=aid).one()
@@ -37,7 +39,7 @@ def verified(client,insurance=False):
 
 def examined(client,insurance=False):
     vid=verified(client,insurance)
-    login(client,'perawat')
+    login(client,'gea')
     response=client.post(f'/visits/{vid}/nursing',data=dict(systolic=120,diastolic=80,temperature=36.6,weight=65,height=170,pulse=75,respiration=18,spo2=98,pain=1,complaint='Keluhan uji',notes='Catatan perawat'))
     assert response.status_code==302
     db.session.expire_all(); assert db.session.get(Visit,vid).status==VisitStatus.WAITING_DOCTOR
@@ -54,10 +56,14 @@ def examined(client,insurance=False):
 def test_complete_cross_role_workflow(client,insurance):
     vid=examined(client,insurance)
     v=db.session.get(Visit,vid); mid=v.prescription.items[0].medicine_id; before=db.session.get(Medicine,mid).stock
-    # Rujukan diterbitkan hanya oleh dokter yang ditugaskan.
-    client.post(f'/visits/{vid}/referral',data=dict(hospital='RS Tujuan',specialist='Penyakit Dalam',reason='Evaluasi lanjut'))
-    assert Referral.query.filter_by(visit_id=vid).count()==1
-    login(client,'apoteker')
+    # Dokter mengajukan, admin menerbitkan, lalu dokter menandatangani rujukan.
+    client.post(f'/visits/{vid}/referral-request',data=dict(hospital='RS Tujuan',specialist='Penyakit Dalam',reason='Evaluasi lanjut'))
+    referral_request=ReferralRequest.query.filter_by(visit_id=vid).one()
+    login(client,'komang')
+    client.post(f'/admin/referrals/{referral_request.id}/issue',data=dict(hospital='RS Tujuan',specialist='Penyakit Dalam'))
+    login(client,'fakih'); client.post(f'/doctor/referrals/{vid}/sign')
+    assert Referral.query.filter_by(visit_id=vid,status='Selesai').count()==1
+    login(client,'bintang')
     for action,expected in [('start',VisitStatus.PHARMACY_PROCESSING),('ready',VisitStatus.MEDICINE_READY),('handover',VisitStatus.WAITING_PAYMENT)]:
         client.post(f'/visits/{vid}/pharmacy/{action}'); db.session.expire_all()
         assert db.session.get(Visit,vid).status==expected
@@ -65,13 +71,13 @@ def test_complete_cross_role_workflow(client,insurance):
     invoice=db.session.get(Visit,vid).invoice
     assert invoice.subtotal==75000+15000+invoice.items[-1].price*3
     assert invoice.payable==(0 if insurance else invoice.subtotal)
-    login(client,'admin'); client.post(f'/visits/{vid}/pay',data=dict(method='Tunai',discount=0)); db.session.expire_all()
+    login(client,'fatur'); client.post(f'/visits/{vid}/pay',data=dict(method='Tunai',discount=0,cash_received=invoice.payable)); db.session.expire_all()
     assert db.session.get(Visit,vid).status==VisitStatus.COMPLETED
     assert Payment.query.count()==1
-    client.post(f'/visits/{vid}/pay',data=dict(method='Tunai',discount=0))
+    client.post(f'/visits/{vid}/pay',data=dict(method='Tunai',discount=0,cash_received=invoice.payable))
     assert Payment.query.count()==1
     login(client,'ratna' if insurance else 'pasien')
-    for url in [f'/visits/{vid}',f'/visits/{vid}/receipt',f'/visits/{vid}/prescription',f'/visits/{vid}/referral','/records','/api/patient/current-visit/status','/api/notifications']:
+    for url in [f'/visits/{vid}',f'/visits/{vid}/receipt',f'/visits/{vid}/prescription','/records','/api/patient/current-visit/status','/api/notifications']:
         response=client.get(url); assert response.status_code==200, url
         assert b'INTERNAL SECRET' not in response.data
     assert Notification.query.count()>=8
@@ -88,7 +94,7 @@ def test_authorization_and_record_isolation(client):
     assert client.post(f'/appointments/{db.session.get(Visit,vid).appointment_id}/verify').status_code==403
     login(client,'alia'); assert client.get(f'/visits/{vid}').status_code==403
     assert client.post(f'/visits/{vid}/start').status_code==403
-    login(client,'apoteker'); assert client.get(f'/visits/{vid}').status_code==403
+    login(client,'bintang'); assert client.get(f'/visits/{vid}').status_code==403
     assert client.get('/records').status_code==403
 
 
@@ -109,7 +115,7 @@ def test_double_booking_cancel_reschedule(client):
 def test_stock_shortage_rolls_back_and_ready_not_repeated(client):
     vid=examined(client); med=db.session.get(Visit,vid).prescription.items[0].medicine
     med._stock=1; db.session.commit(); mid=med.id
-    login(client,'apoteker'); client.post(f'/visits/{vid}/pharmacy/start')
+    login(client,'bintang'); client.post(f'/visits/{vid}/pharmacy/start')
     client.post(f'/visits/{vid}/pharmacy/ready'); db.session.expire_all()
     assert db.session.get(Medicine,mid).stock==1
     assert db.session.get(Visit,vid).status==VisitStatus.PHARMACY_PROCESSING
@@ -120,17 +126,18 @@ def test_stock_shortage_rolls_back_and_ready_not_repeated(client):
 
 
 def test_queue_unique_and_duplicate_verification(client):
-    aid=book(client); login(client,'admin'); client.post(f'/appointments/{aid}/verify'); client.post(f'/appointments/{aid}/verify')
+    aid=book(client); login(client,'komang'); client.post(f'/appointments/{aid}/verify'); client.post(f'/appointments/{aid}/verify')
     assert Visit.query.count()==1
     v=Visit.query.first(); assert v.queue=='D1-001'
     client.post(f'/visits/{v.id}/queue/call'); db.session.expire_all(); assert db.session.get(Visit,v.id).queue_state=='CALLED'
 
 
 @pytest.mark.parametrize('account,urls',[
-    ('admin',['/admin/dashboard','/admin/patients','/admin/patients/1','/appointments','/appointments/new','/admin/doctors','/medicines','/admin/users','/admin/reports','/admin/reports?export=csv','/records','/referrals']),
-    ('pasien',['/patient/dashboard','/appointments','/appointments/new','/profile','/records','/referrals']),
-    ('fakih',['/doctor/dashboard','/records','/referrals']),
-    ('perawat',['/nurse/dashboard']),('apoteker',['/pharmacist/dashboard','/medicines'])])
+    ('komang',['/admin/dashboard','/admin/patients','/admin/patients/1','/appointments','/appointments/new','/admin/doctors','/medicines','/admin/users','/admin/reports','/admin/reports?export=csv','/records','/admin/referrals']),
+    ('pasien',['/patient/dashboard','/appointments','/appointments/new','/profile','/records']),
+    ('fakih',['/doctor/dashboard','/records','/admin/referrals']),
+    ('gea',['/nurse/dashboard']),('bintang',['/pharmacist/dashboard','/medicines']),
+    ('fatur',['/cashier/payments'])])
 def test_role_pages_render(client,account,urls):
     response=login(client,account); assert response.status_code==302
     for url in urls+['/api/dashboard-fragment','/api/notifications']:
@@ -140,7 +147,8 @@ def test_role_pages_render(client,account,urls):
 def test_public_and_registration(client):
     for url in ['/','/login','/register']:
         assert client.get(url).status_code==200
-    data=dict(name='Pasien Baru',nik='1234567890123456',birth_date='1995-03-01',gender='Perempuan',address='Jl. Baru',phone='081234567899',email='baru@example.com',password='Testing123!',confirm='Testing123!')
+    data=dict(name='Pasien Baru',nik='1234567890123456',tempat_lahir='Samarinda',birth_date='1995-03-01',gender='Perempuan',address='Jl. Baru',phone='081234567899',email='baru@example.com',password='Testing123!',confirm='Testing123!',
+        foto_ktp=(BytesIO(b'\x89PNG\r\n\x1a\nDATA-UJI'),'ktp.png'))
     client.post('/register',data=data)
     patient=Patient.query.filter_by(nik=data['nik']).one()
     assert patient.mr and patient.user.check_password('Testing123!')
@@ -159,7 +167,7 @@ def test_no_medication_and_out_of_order(client):
     login(client,'fakih')
     client.post(f'/visits/{vid}/start'); db.session.expire_all()
     assert db.session.get(Visit,vid).status==VisitStatus.WAITING_NURSE
-    login(client,'perawat')
+    login(client,'gea')
     client.post(f'/visits/{vid}/nursing',data=dict(systolic=120,diastolic=80,temperature=36.6,weight=65,height=170,pulse=75,respiration=18,spo2=98,pain=1,complaint='Uji'))
     login(client,'fakih'); client.post(f'/visits/{vid}/start')
     client.post(f'/visits/{vid}/examination',data=dict(anamnesis='Uji',physical='Uji',diagnosis='Uji',treatment_fee=0))
@@ -171,7 +179,7 @@ def test_no_medication_and_out_of_order(client):
 
 def test_verified_reschedule_releases_slot_and_requires_reverification(client):
     aid=book(client)
-    login(client,'admin'); client.post(f'/appointments/{aid}/verify')
+    login(client,'komang'); client.post(f'/appointments/{aid}/verify')
     a=db.session.get(Appointment,aid); old_key=a.slot_key; vid=a.visit.id
     login(client,'pasien')
     client.post(f'/appointments/{aid}/reschedule',data=dict(doctor_id=a.doctor_id,date=a.date.isoformat(),time='09:00',complaint='Jadwal baru',insurance='general'))
@@ -179,7 +187,7 @@ def test_verified_reschedule_releases_slot_and_requires_reverification(client):
     assert a.status==AppointmentStatus.RESCHEDULED
     assert a.visit.status==VisitStatus.WAITING_VERIFICATION
     assert a.slot_key!=old_key
-    login(client,'admin'); client.post(f'/appointments/{aid}/verify'); db.session.expire_all()
+    login(client,'komang'); client.post(f'/appointments/{aid}/verify'); db.session.expire_all()
     assert db.session.get(Visit,vid).status==VisitStatus.WAITING_NURSE
     assert db.session.get(Visit,vid).queue=='D1-002'
     login(client,'pasien'); client.post(f'/appointments/{aid}/cancel'); db.session.expire_all()
@@ -198,9 +206,9 @@ def test_invalid_input_and_reminders(client):
     assert Notification.query.filter(Notification.unique_key.isnot(None)).count()==1
     client.post('/api/notifications/read')
     assert Notification.query.filter_by(user_id=a.patient.user_id,read=False).count()==0
-    login(client,'admin'); client.post(f'/appointments/{aid}/verify')
+    login(client,'komang'); client.post(f'/appointments/{aid}/verify')
     vid=Visit.query.one().id
-    login(client,'perawat')
+    login(client,'gea')
     client.post(f'/visits/{vid}/nursing',data=dict(systolic='nan',diastolic=80,temperature=36.6,weight=65,height=0,pulse=75,respiration=18,spo2=98,pain=1,complaint='Uji'))
     assert NursingAssessment.query.count()==0
     assert Visit.query.one().status==VisitStatus.WAITING_NURSE
@@ -214,7 +222,7 @@ def test_multiple_medicine_shortage_is_atomic(client):
     p.items.append(PrescriptionItem(medicine=second,quantity=10,price=second.price,dosage='Uji',frequency='Uji',duration='Uji',timing='Uji'))
     first_id=p.items[0].medicine_id; first_stock=p.items[0].medicine.stock
     db.session.commit()
-    login(client,'apoteker'); client.post(f'/visits/{vid}/pharmacy/start'); client.post(f'/visits/{vid}/pharmacy/ready')
+    login(client,'bintang'); client.post(f'/visits/{vid}/pharmacy/start'); client.post(f'/visits/{vid}/pharmacy/ready')
     db.session.expire_all()
     assert db.session.get(Medicine,first_id).stock==first_stock
     assert StockMovement.query.filter_by(visit_id=vid).count()==0
@@ -222,7 +230,7 @@ def test_multiple_medicine_shortage_is_atomic(client):
 
 
 def test_admin_configuration_and_stock(client):
-    login(client,'admin')
+    login(client,'komang')
     client.post('/admin/doctors',data=dict(name='dr. Uji',email='uji@medikahusada.local',password='Testing123!',specialty='Dokter Umum',fee=80000,active='on'))
     doctor=Doctor.query.join(User).filter(User.email=='uji@medikahusada.local').one()
     client.post('/admin/schedules',data=dict(doctor_id=doctor.id,weekday=0,start='08:00',end='10:00',interval=30,quota=3))
@@ -262,7 +270,7 @@ def test_parallel_booking_database_constraint(app):
 
 def test_nurse_completed_screening_and_clinical_page_render(client):
     vid=examined(client)
-    login(client,'perawat')
+    login(client,'gea')
     response=client.get('/nurse/dashboard')
     assert response.status_code==200 and b'Selesai screening' in response.data
     assert client.get(f'/visits/{vid}').status_code==200
@@ -282,7 +290,7 @@ def test_database_persists_across_application_restart(app,client):
     restarted=create_app({'TESTING':True,'WTF_CSRF_ENABLED':False,'SECRET_KEY':'test-only',
         'SQLALCHEMY_DATABASE_URI':app.config['SQLALCHEMY_DATABASE_URI']})
     with restarted.app_context():
-        another=restarted.test_client(); login(another,'admin')
+        another=restarted.test_client(); login(another,'komang')
         assert Appointment.query.count()==1
         assert another.get('/appointments').status_code==200
         another.post(f'/appointments/{aid}/verify')

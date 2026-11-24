@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from . import db
 from .models import *
 from .services import *
-from .clock import now as clock_now, today as clock_today
+from .clock import today as clock_today
 
 web=Blueprint('web',__name__)
 
@@ -275,82 +275,35 @@ def referrals():
 def sign_referral(visit_id):
     v=db.get_or_404(Visit,visit_id)
     if v.doctor.user_id!=current_user.id: abort(403)
-    def sign():
-        if not v.referral or v.referral.status!='Menunggu TTD':
-            raise ValueError('Surat rujukan tidak tersedia untuk ditandatangani.')
-        v.referral.status='Selesai'
-        v.referral.signed_at=clock_now()
-        return 'Surat rujukan berhasil ditandatangani.'
-    return mutate(sign,url_for('web.referrals'))
+    return mutate(lambda:ReferralService.sign(v),url_for('web.referrals'))
 
 
 @web.post('/visits/<int:visit_id>/referral-request')
 @roles(Role.DOCTOR)
 def referral_request(visit_id):
     v=visit_access(visit_id)
-    def create_request():
-        if not v.examination: raise ValueError('Selesaikan pemeriksaan dokter sebelum mengajukan rujukan.')
-        if v.referral or v.referral_request: raise ValueError('Kunjungan ini sudah memiliki surat atau pengajuan rujukan.')
-        db.session.add(ReferralRequest(visit=v,
-            specialist=required(request.form,'specialist',160),
-            hospital=required(request.form,'hospital',160),
-            reason=required(request.form,'reason',4000)))
-        return 'Permintaan rujukan berhasil dikirim ke admin.'
-    return mutate(create_request,url_for('web.visit',visit_id=v.id))
+    return mutate(lambda:ReferralService.request(v,request.form),url_for('web.visit',visit_id=v.id))
 
 
 @web.post('/admin/referrals/<int:request_id>/issue')
 @roles(Role.ADMIN)
 def issue_referral(request_id):
     referral_request=db.get_or_404(ReferralRequest,request_id)
-    def issue():
-        if referral_request.status!='PENDING' or referral_request.visit.referral:
-            raise ValueError('Permintaan ini sudah diproses.')
-        specialist=required(request.form,'specialist',160)
-        hospital=required(request.form,'hospital',160)
-        notes=str(request.form.get('notes',''))[:4000]
-        v=referral_request.visit
-        db.session.add(Referral(visit=v,number=f'RJK-{clock_today():%Y%m%d}-{v.id:05}',
-            specialist=specialist,hospital=hospital,reason=referral_request.reason,notes=notes))
-        referral_request.status='ISSUED'
-        referral_request.admin=current_user
-        referral_request.completed_at=clock_now()
-        return 'Surat rujukan berhasil dibuat.'
-    return mutate(issue,url_for('web.referrals'))
+    return mutate(lambda:ReferralService.issue(referral_request,current_user,request.form),url_for('web.referrals'))
 
 
 @web.post('/admin/referrals/<int:request_id>/reject')
 @roles(Role.ADMIN)
 def reject_referral_request(request_id):
     referral_request=db.get_or_404(ReferralRequest,request_id)
-    def reject():
-        if referral_request.status!='PENDING' or referral_request.visit.referral:
-            raise ValueError('Permintaan ini sudah diproses.')
-        referral_request.status='REJECTED'
-        referral_request.admin=current_user
-        referral_request.completed_at=clock_now()
-        referral_request.rejection_reason=required(request.form,'rejection_reason',4000)
-        return 'Permintaan surat rujukan ditolak.'
-    return mutate(reject,url_for('web.referrals'))
+    return mutate(lambda:ReferralService.reject(referral_request,current_user,request.form),url_for('web.referrals'))
 
 
 @web.post('/admin/referrals/archive')
 @roles(Role.ADMIN)
 def archive_referral():
-    def save_existing():
-        v=db.get_or_404(Visit,request.form.get('visit_id',type=int))
-        if v.referral or v.referral_request or not v.examination:
-            raise ValueError('Kunjungan ini tidak tersedia untuk pencatatan surat lama.')
-        try:
-            issued_date=date.fromisoformat(request.form.get('issued_date',''))
-        except ValueError:
-            raise ValueError('Tanggal surat tidak valid.')
-        db.session.add(Referral(visit=v,number=required(request.form,'number',40),
-            specialist=required(request.form,'specialist',160),hospital=required(request.form,'hospital',160),
-            reason=required(request.form,'reason',4000),notes=str(request.form.get('notes',''))[:4000],
-            created_at=datetime.combine(issued_date,datetime.min.time())))
-        return 'Surat rujukan lama berhasil dicatat.'
-    return mutate(save_existing,url_for('web.referrals'))
+    v=db.get_or_404(Visit,request.form.get('visit_id',type=int))
+    return mutate(lambda:ReferralService.archive(v,request.form),url_for('web.referrals'))
 
 
 @web.get('/patient/medical-record/<int:visit_id>')
@@ -417,7 +370,7 @@ def cashier_payments():
 def pay(visit_id):
     v=visit_access(visit_id)
     def action():
-        payment=BillingService.pay(v,current_user,request.form)
+        payment=billing_service.pay(v,current_user,request.form)
         return f'Pembayaran berhasil dikonfirmasi. Kembalian: Rp{payment.cash_change:,}.' if payment.method=='Tunai' else 'Pembayaran berhasil dikonfirmasi.'
     return mutate(action,url_for('web.receipt',visit_id=v.id))
 
@@ -517,16 +470,7 @@ def medicines():
         def save():
             mid=request.form.get('id',type=int)
             med=db.get_or_404(Medicine,mid) if mid else Medicine(_stock=0)
-            med.name=required(request.form,'name',160)
-            med.category=required(request.form,'category',80); med.unit=required(request.form,'unit',32)
-            med.price=number(request.form,'price',0,100000000,True)
-            med.minimum=number(request.form,'minimum',0,1000000,True)
-            med.expiry=date.fromisoformat(request.form['expiry']) if request.form.get('expiry') else None
-            db.session.add(med); db.session.flush()
-            delta=number(request.form,'delta',-1000000,1000000,True)
-            if delta>0 and current_user.role==Role.PHARMACIST:
-                raise ValueError('Penambahan stok harus diajukan melalui pembelian pemasok dan disetujui admin.')
-            if delta: med.change_stock(delta,required(request.form,'reason',200),current_user.id)
+            InventoryService.save_medicine(med,request.form,current_user)
         return mutate(save,url_for('web.medicines'))
     return render_template('medicines.html',medicines=Medicine.query.order_by(Medicine.name).all(),movements=StockMovement.query.order_by(StockMovement.id.desc()).limit(40).all(),today=clock_today())
 
@@ -538,31 +482,7 @@ def supplier_purchases():
     if role not in (Role.ADMIN,Role.PHARMACIST): abort(403)
     if request.method=='POST':
         if role!=Role.PHARMACIST: abort(403)
-        def create_request():
-            ids=request.form.getlist('medicine_id')
-            quantities=request.form.getlist('quantity')
-            costs=request.form.getlist('estimated_unit_cost')
-            if not ids or len(ids)!=len(quantities) or len(ids)!=len(costs) or len(ids)>50:
-                raise ValueError('Tambahkan minimal satu obat dengan jumlah dan harga yang lengkap (maks. 50 obat).')
-            parsed=[]; seen=set()
-            for raw_id,raw_quantity,raw_cost in zip(ids,quantities,costs):
-                try: medicine_id=int(raw_id)
-                except (ValueError,TypeError): raise ValueError('Pilih obat yang valid untuk setiap baris.')
-                if medicine_id in seen: raise ValueError('Obat yang sama tidak boleh dimasukkan lebih dari sekali; gabungkan jumlahnya dalam satu baris.')
-                seen.add(medicine_id)
-                medicine=db.get_or_404(Medicine,medicine_id)
-                quantity=number({'quantity':raw_quantity},'quantity',1,1000000,True)
-                cost=number({'estimated_unit_cost':raw_cost},'estimated_unit_cost',1,100000000,True)
-                parsed.append((medicine,quantity,cost))
-            first_medicine,first_quantity,first_cost=parsed[0]
-            purchase=SupplierPurchase(supplier=required(request.form,'supplier',160),medicine=first_medicine,
-                pharmacist_id=current_user.id,requested_quantity=first_quantity,estimated_unit_cost=first_cost,
-                reason=required(request.form,'reason',400))
-            db.session.add(purchase)
-            db.session.flush()
-            for medicine,quantity,cost in parsed:
-                db.session.add(SupplierPurchaseItem(purchase=purchase,medicine=medicine,requested_quantity=quantity,estimated_unit_cost=cost))
-        return mutate(create_request,url_for('web.supplier_purchases'))
+        return mutate(lambda:SupplierPurchaseService.request(current_user,request.form),url_for('web.supplier_purchases'))
     query=SupplierPurchase.query.order_by(SupplierPurchase.created_at.desc(),SupplierPurchase.id.desc())
     if role==Role.PHARMACIST: query=query.filter_by(pharmacist_id=current_user.id)
     return render_template('supplier_purchases.html',purchases=query.all(),medicines=Medicine.query.order_by(Medicine.name).all())
@@ -572,48 +492,10 @@ def supplier_purchases():
 @login_required
 def supplier_purchase_action(purchase_id,action):
     purchase=db.get_or_404(SupplierPurchase,purchase_id)
-    def update_purchase():
-        role=current_user.role
-        if action in ('approve_purchase','reject_purchase'):
-            if role!=Role.ADMIN: abort(403)
-        else:
-            abort(404)
-
-        if action=='approve_purchase':
-            if purchase.status!=SupplierPurchaseStatus.PENDING_PURCHASE_APPROVAL: raise ValueError('Pengajuan pembelian tidak sedang menunggu keputusan.')
-            received_at=clock_now()
-            if not (purchase.supplier_invoice or '').strip():
-                purchase.supplier_invoice=generate_supplier_invoice_number(received_at)
-            items=purchase.items or [purchase]
-            amount=0
-            for item in items:
-                quantity=item.requested_quantity
-                unit_cost=item.estimated_unit_cost
-                amount+=quantity*unit_cost
-                movement_reason=f'Pembelian pemasok {purchase.supplier}; pengajuan #{purchase.id}'[:200]
-                item.medicine.change_stock(quantity,movement_reason,current_user.id)
-                item.received_quantity=quantity
-                item.actual_unit_cost=unit_cost
-            purchase.received_quantity=purchase.requested_quantity
-            purchase.actual_unit_cost=purchase.estimated_unit_cost
-            purchase.received_at=received_at
-            purchase.status=SupplierPurchaseStatus.PURCHASE_COMPLETED
-            expense=purchase.expense_invoice
-            if expense is None:
-                expense=ExpenseInvoice(purchase=purchase,
-                    number=f'EXP-{received_at:%Y%m%d}-{purchase.id:05}',
-                    supplier=purchase.supplier,amount=amount,created_at=received_at)
-                db.session.add(expense)
-            else:
-                expense.supplier=purchase.supplier; expense.amount=amount
-            purchase.purchase_decided_by=current_user.id; purchase.purchase_decided_at=clock_now()
-            purchase.purchase_decision_note=request.form.get('note','')[:400]
-        elif action=='reject_purchase':
-            if purchase.status!=SupplierPurchaseStatus.PENDING_PURCHASE_APPROVAL: raise ValueError('Pengajuan pembelian tidak sedang menunggu keputusan.')
-            purchase.status=SupplierPurchaseStatus.PURCHASE_REJECTED
-            purchase.purchase_decided_by=current_user.id; purchase.purchase_decided_at=clock_now()
-            purchase.purchase_decision_note=required(request.form,'note',400)
-    return mutate(update_purchase,url_for('web.supplier_purchases'))
+    if action not in ('approve_purchase','reject_purchase'): abort(404)
+    if current_user.role!=Role.ADMIN: abort(403)
+    service_method=SupplierPurchaseService.approve if action=='approve_purchase' else SupplierPurchaseService.reject
+    return mutate(lambda:service_method(purchase,current_user,request.form),url_for('web.supplier_purchases'))
 
 
 @web.route('/admin/doctors',methods=['GET','POST'])
